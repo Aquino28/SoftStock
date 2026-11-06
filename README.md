@@ -19,4 +19,4 @@ PTF50 Final Project, Angeles University Foundation.
 Use the VS Code "Live Server" extension on index.html. Opening the file directly will not work (ES modules need a server).
 
 ## Deployed link
-(add after deployment)
+https://softstock.vercel.app/ 
