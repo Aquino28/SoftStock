@@ -4,12 +4,16 @@
 // ============================================================
 
 import * as Inventory from "./inventory.js";
+import { initUI } from "./dashboard.js";
 
-// 1. Load saved data (or sample data on first run)
+// Load saved data (or sample data on first run)
 Inventory.initInventory();
 
-// 2. TEMPORARY: lets us test from the browser console by typing "SoftStock.getItems()"
-//    Remove this line before the final submission.
+// Start the user interface 
+initUI();
+
+// TEMPORARY: lets us test from the browser console by typing "SoftStock.getItems()"
+// Remove this line before the final submission.
 window.SoftStock = Inventory;
 
 console.log("SoftStock ready. Try: SoftStock.getItems()");

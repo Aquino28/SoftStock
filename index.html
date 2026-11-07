@@ -1,16 +1,43 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SoftStock</title>
-  <link rel="stylesheet" href="./css/style.css" />
-</head>
-<body>
-  <h1>SoftStock</h1>
-  <p>Setup page. Open the browser console (F12) to test the inventory.</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SoftStock</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>SoftStock</h1>
+      <p>Softbound Café Inventory</p>
+    </header>
 
-  <!-- type="module" is REQUIRED because our JS files use import/export -->
-  <script type="module" src="./js/main.js"></script>
-</body>
+    <nav class="tabs">
+      <button class="tab active" data-view="dashboard">Dashboard</button>
+      <button class="tab" data-view="inventory">Inventory</button>
+      <button class="tab" data-view="insights">AI Insights</button>
+    </nav>
+
+    <main>
+      <section id="view-dashboard" class="view">
+        <h2>Dashboard</h2>
+        <div id="dashboard-content"></div>
+      </section>
+
+      <section id="view-inventory" class="view hidden">
+        <h2>Inventory</h2>
+        <div id="inventory-content"></div>
+      </section>
+
+      <section id="view-insights" class="view hidden">
+        <h2>AI Demand Insights</h2>
+        <div id="insights-content"></div>
+      </section>
+    </main>
+
+    <div id="message" class="message hidden"></div>
+
+    <!-- type="module" is REQUIRED because our JS files use import/export -->
+    <script type="module" src="./js/main.js"></script>
+  </body>
 </html>

@@ -24,3 +24,21 @@ export const SEED_ITEMS = [
   { name: "Croissants",        category: "Pastries",  quantity: 10,  unit: "pcs",     minStock: 6   }, // OK
   { name: "Blueberry Muffins", category: "Pastries",  quantity: 4,   unit: "pcs",     minStock: 6   }  // LOW
 ];
+
+
+// ------------------------------------------------------------
+// Sample stock movements (history) so the dashboard is not empty during demos.
+// daysAgo: 0 = today, 1 = yesterday, etc.
+// NOTE: these are for display only. They do NOT change the quantities above.
+// ------------------------------------------------------------
+export const SEED_MOVEMENTS = [
+  { name: "Fresh Milk",        type: "in",  quantity: 20, note: "Weekly delivery",   daysAgo: 6 },
+  { name: "Fresh Milk",        type: "out", quantity: 8,  note: "Used this week",    daysAgo: 3 },
+  { name: "Espresso Beans",    type: "in",  quantity: 5,  note: "Supplier delivery", daysAgo: 5 },
+  { name: "Espresso Beans",    type: "out", quantity: 2,  note: "Used this week",    daysAgo: 2 },
+  { name: "Oat Milk",          type: "out", quantity: 3,  note: "Ran out",           daysAgo: 2 },
+  { name: "Paper Straws",      type: "out", quantity: 50, note: "Used up",           daysAgo: 1 },
+  { name: "Cup Lids",          type: "out", quantity: 40, note: "Busy weekend",      daysAgo: 1 },
+  { name: "Blueberry Muffins", type: "out", quantity: 6,  note: "Sold out early",    daysAgo: 0 },
+  { name: "Croissants",        type: "in",  quantity: 12, note: "Morning bake",      daysAgo: 0 }
+];

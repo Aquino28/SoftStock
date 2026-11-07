@@ -12,7 +12,7 @@
 // ============================================================
 
 import { STORAGE_KEYS, load, save } from "./storage.js";
-import { SEED_ITEMS } from "./seed.js";
+import { SEED_ITEMS, SEED_MOVEMENTS } from "./seed.js";
 
 // ------------------------------------------------------------
 // SECTION 1: Small helper functions (used only inside this file)
@@ -56,13 +56,24 @@ function toValidText(value, fieldName) {
   return text;
 }
 
+// Rounds to 3 decimals so 11.8 - 0.1 never becomes 11.700000000000001
+function round(number) {
+  return Math.round(number * 1000) / 1000;
+}
+
+// Makes sure what we read from LocalStorage is really a list (array).
+// If the saved data is damaged, we return an empty list instead of crashing.
+function asList(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 // Shortcuts to read/save each data list
-const readItems = () => load(STORAGE_KEYS.items);
+const readItems = () => asList(load(STORAGE_KEYS.items));
 const writeItems = (items) => save(STORAGE_KEYS.items, items);
-const readMovements = () => load(STORAGE_KEYS.movements);
+const readMovements = () => asList(load(STORAGE_KEYS.movements));
 const writeMovements = (list) => save(STORAGE_KEYS.movements, list);
-const readObservations = () => load(STORAGE_KEYS.observations);
-const writeObservations = (list) => save(STORAGE_KEYS.observations, list);
+const readObservations = () => asList(load(STORAGE_KEYS.observations));
+const writeObservations = (list) => save(STORAGE_KEYS.observations, list);;
 
 // ------------------------------------------------------------
 // SECTION 2: Startup
@@ -90,7 +101,25 @@ export function resetToSeedData() {
     updatedAt: now()
   }));
   writeItems(items);
-  writeMovements([]);
+
+  // Build the sample movement history (dated in the past) for demos
+  const movements = SEED_MOVEMENTS
+    .map((seed) => {
+      const item = items.find((i) => i.name === seed.name);
+      if (!item) return null; // skip if the item name doesn't exist
+      const date = new Date(Date.now() - seed.daysAgo * 24 * 60 * 60 * 1000).toISOString();
+      return {
+        id: generateId("mov"),
+        itemId: item.id,
+        type: seed.type,
+        quantity: seed.quantity,
+        note: seed.note,
+        date
+      };
+    })
+    .filter(Boolean);
+
+  writeMovements(movements);
   writeObservations([]);
 }
 
@@ -153,7 +182,18 @@ export function updateItem(id, changes) {
     throw new Error("Item not found.");
   }
 
-  const item = items[index];
+const item = items[index];
+
+  // Prevent renaming an item to a name that another item already uses
+  if (changes.name !== undefined) {
+    const newName = toValidText(changes.name, "Item name");
+    const taken = items.some(
+      (other) => other.id !== id && other.name.toLowerCase() === newName.toLowerCase()
+    );
+    if (taken) {
+      throw new Error(`"${newName}" already exists in the inventory.`);
+    }
+  }
 
   // Only update fields that were actually provided
   if (changes.name !== undefined)     item.name = toValidText(changes.name, "Item name");
@@ -209,8 +249,7 @@ function applyMovement(id, type, qty, note) {
   }
 
   // Update the quantity
-  item.quantity = type === "in" ? item.quantity + amount : item.quantity - amount;
-  item.updatedAt = now();
+  item.quantity = round(type === "in" ? item.quantity + amount : item.quantity - amount);  item.updatedAt = now();
   items[index] = item;
   writeItems(items);
 
