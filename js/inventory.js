@@ -12,7 +12,7 @@
 // ============================================================
 
 import { STORAGE_KEYS, load, save } from "./storage.js";
-import { SEED_ITEMS } from "./seed.js";
+import { SEED_ITEMS, SEED_MOVEMENTS } from "./seed.js";
 
 // ------------------------------------------------------------
 // SECTION 1: Small helper functions (used only inside this file)
@@ -101,7 +101,25 @@ export function resetToSeedData() {
     updatedAt: now()
   }));
   writeItems(items);
-  writeMovements([]);
+
+  // Build the sample movement history (dated in the past) for demos
+  const movements = SEED_MOVEMENTS
+    .map((seed) => {
+      const item = items.find((i) => i.name === seed.name);
+      if (!item) return null; // skip if the item name doesn't exist
+      const date = new Date(Date.now() - seed.daysAgo * 24 * 60 * 60 * 1000).toISOString();
+      return {
+        id: generateId("mov"),
+        itemId: item.id,
+        type: seed.type,
+        quantity: seed.quantity,
+        note: seed.note,
+        date
+      };
+    })
+    .filter(Boolean);
+
+  writeMovements(movements);
   writeObservations([]);
 }
 
