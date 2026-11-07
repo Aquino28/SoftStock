@@ -149,3 +149,125 @@ h2 { color: var(--brown); font-family: Georgia, "Times New Roman", serif; }
   .stat-grid  { grid-template-columns: repeat(4, 1fr); }
   .panel-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Inventory page ---------- */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.toolbar input,
+.toolbar select {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.toolbar input { flex: 1; }
+.toolbar input:focus,
+.toolbar select:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+
+.table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.table th {
+  text-align: left;
+  background: var(--cream-dark);
+  color: var(--brown);
+  padding: 0.65rem 0.8rem;
+  white-space: nowrap;
+}
+.table td {
+  padding: 0.65rem 0.8rem;
+  border-top: 1px solid var(--cream-dark);
+  white-space: nowrap;
+}
+.row-out td:first-child { border-left: 4px solid var(--out); }
+.row-low td:first-child { border-left: 4px solid var(--low); }
+.row-ok  td:first-child { border-left: 4px solid var(--ok); }
+
+@media (min-width: 700px) {
+  .toolbar { flex-direction: row; }
+}
+
+/* ---------- Buttons, actions, form dialog ---------- */
+.btn-primary { background: var(--blue-dark); color: #fff; }
+.btn-primary:hover { background: #167aa1; }
+.btn-small { padding: 0.3rem 0.7rem; font-size: 0.8rem; background: var(--cream-dark); color: var(--brown); }
+.btn-small:hover { background: var(--border); }
+.btn-danger { background: #fbe4e4; color: var(--out); }
+.btn-danger:hover { background: #f5c9c9; }
+.actions { display: flex; gap: 0.4rem; }
+.btn-in  { background: #dff1e0; color: var(--ok); }
+.btn-in:hover  { background: #c8e6ca; }
+.btn-out { background: #fdecc8; color: #9a5b00; }
+.btn-out:hover { background: #f9dca0; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  width: min(440px, 92vw);
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+dialog::backdrop { background: rgba(87, 44, 10, 0.45); }
+
+.form { display: flex; flex-direction: column; gap: 0.8rem; padding: 1.2rem; }
+.form h3 { margin: 0; color: var(--brown); font-family: Georgia, "Times New Roman", serif; }
+.form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--brown); font-weight: 600; }
+.form input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 400;
+}
+.form input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+.form input:disabled { background: var(--cream-dark); color: var(--brown-soft); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.form-error { margin: 0; padding: 0.5rem 0.7rem; border-radius: 6px; background: #fbe4e4; color: var(--out); font-size: 0.85rem; }
+.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.form .muted { margin: -0.4rem 0 0; }
+
+/* ---------- AI Insights page ---------- */
+.form select,
+.form textarea {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 400;
+}
+.form select:focus,
+.form textarea:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+.form textarea { resize: vertical; }
+.form-flat { padding: 0; margin-top: 0.8rem; }
+
+.result-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--blue);
+  border-radius: 10px;
+}
+.result-label { font-size: 1.3rem; font-weight: 700; color: var(--brown); margin: 0.2rem 0 0.6rem; }
+.confidence { display: flex; align-items: center; gap: 0.7rem; font-size: 0.85rem; }
+.confidence-bar { flex: 1; height: 10px; background: var(--cream-dark); border-radius: 999px; overflow: hidden; }
+.confidence-fill { height: 100%; background: var(--blue-dark); border-radius: 999px; }
+.result-explanation { margin: 0.7rem 0 0.3rem; }
