@@ -1,1 +1,151 @@
+/* Colors taken from the Softbound Café logo */
+:root {
+  --brown: #572c0a;        /* logo lettering and outlines */
+  --brown-soft: #7a4a26;   /* lighter brown for secondary text */
+  --cream: #fbf5e6;        /* page background (logo book pages) */
+  --cream-dark: #f1e6c8;   /* cards / table headers */
+  --blue: #3dc5ef;         /* logo cup */
+  --blue-dark: #1b8fba;    /* buttons with white text (better contrast) */
+  --ink: #2a2230;          /* body text (the "EST. 2026" navy) */
+  --border: #e3d6b4;
 
+  /* Stock status colors */
+  --ok: #2e7d32;
+  --low: #e08a00;
+  --out: #c62828;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.app-header {
+  background: var(--brown);
+  color: var(--cream);
+  padding: 1rem;
+  border-bottom: 4px solid var(--blue);
+}
+.app-header h1 { margin: 0; font-size: 1.4rem; font-family: Georgia, "Times New Roman", serif; }
+.app-header p  { margin: 0; opacity: 0.85; font-size: 0.85rem; }
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--brown);
+  cursor: pointer;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.tab:hover { background: var(--cream-dark); }
+.tab.active { background: var(--blue); color: var(--brown); font-weight: 600; }
+
+main { max-width: 960px; margin: 0 auto; padding: 1rem; }
+h2 { color: var(--brown); font-family: Georgia, "Times New Roman", serif; }
+.hidden { display: none !important; }
+
+.message {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  background: var(--brown);
+  color: var(--cream);
+  max-width: 90%;
+}
+.message.error { background: var(--out); color: #fff; }
+
+/* ---------- Dashboard ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--brown);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+.stat-number { font-size: 2rem; font-weight: 700; line-height: 1; }
+.stat-label  { margin-top: 0.3rem; font-size: 0.85rem; color: var(--brown-soft); }
+.stat-ok  { border-left-color: var(--ok); }
+.stat-low { border-left-color: var(--low); }
+.stat-out { border-left-color: var(--out); }
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.panel h3 { margin: 0 0 0.6rem; color: var(--brown); font-size: 1.05rem; }
+.panel-grid { display: grid; grid-template-columns: 1fr; gap: 0 1rem; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--cream-dark);
+}
+.list-row:last-child { border-bottom: none; }
+.muted { font-size: 0.8rem; color: var(--brown-soft); }
+.empty { color: var(--brown-soft); margin: 0.3rem 0; }
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+.badge-ok  { background: var(--ok); }
+.badge-low { background: var(--low); }
+.badge-out { background: var(--out); }
+.badge-ai  { background: var(--blue-dark); }
+.ai-result { text-align: right; }
+
+.move { font-weight: 700; }
+.move-in  { color: var(--ok); }
+.move-out { color: var(--out); }
+
+.btn {
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.btn-secondary { background: var(--cream-dark); color: var(--brown); }
+.btn-secondary:hover { background: var(--border); }
+.dashboard-footer { text-align: right; }
+
+@media (min-width: 700px) {
+  .stat-grid  { grid-template-columns: repeat(4, 1fr); }
+  .panel-grid { grid-template-columns: 1fr 1fr; }
+}
