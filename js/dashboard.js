@@ -228,7 +228,7 @@ export function renderInventory() {
     container.innerHTML = `
       <div class="toolbar">
         <button id="add-item-btn" class="btn btn-primary">+ Add item</button>
-        <input id="inv-search" type="search"
+        <button id="all-history-btn" class="btn btn-secondary">All history</button>        <input id="inv-search" type="search"
                placeholder="Search by name or category..."
                value="${escapeHtml(inventoryFilters.search)}" />
         <select id="inv-status">
@@ -256,15 +256,15 @@ export function renderInventory() {
     });
 
     document.getElementById("add-item-btn").addEventListener("click", () => openItemForm());
-
+    document.getElementById("all-history-btn").addEventListener("click", () => openHistory());
     // One listener handles every Edit / Delete button in the table
     document.getElementById("inv-table").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
       if (!button) return;
       if (button.dataset.action === "in") openStockForm(button.dataset.id, "in");
       if (button.dataset.action === "out") openStockForm(button.dataset.id, "out");
-      if (button.dataset.action === "edit") openItemForm(button.dataset.id);
-      if (button.dataset.action === "delete") handleDelete(button.dataset.id);
+      if (button.dataset.action === "history") openHistory(button.dataset.id);
+      if (button.dataset.action === "edit") openItemForm(button.dataset.id);      if (button.dataset.action === "delete") handleDelete(button.dataset.id);
     });
 
     renderInventoryTable();
@@ -311,8 +311,8 @@ function renderInventoryTable() {
           <td class="actions">
             <button class="btn btn-small btn-in" data-action="in" data-id="${escapeHtml(item.id)}">Stock in</button>
             <button class="btn btn-small btn-out" data-action="out" data-id="${escapeHtml(item.id)}" ${item.status === "out" ? "disabled" : ""}>Stock out</button>
-            <button class="btn btn-small" data-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>
-            <button class="btn btn-small btn-danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+            <button class="btn btn-small" data-action="history" data-id="${escapeHtml(item.id)}">History</button>
+            <button class="btn btn-small" data-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>            <button class="btn btn-small btn-danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
           </td>
         </tr>`
       )
@@ -545,6 +545,70 @@ function openStockForm(itemId, type) {
 
   dialog.showModal();
   document.querySelector("#stock-form input[name='quantity']").focus();
+}
+
+// ------------------------------------------------------------
+// SECTION 6B: Stock movement history pop-up
+// ------------------------------------------------------------
+
+// Opens a pop-up listing stock movements (newest first).
+// openHistory(itemId) -> history of ONE item
+// openHistory()       -> history of ALL items
+function openHistory(itemId = null) {
+  const item = itemId ? Inventory.getItemById(itemId) : null;
+
+  if (itemId && !item) {
+    showMessage("Item not found.", true);
+    return;
+  }
+
+  // Reuse the same dialog as the other forms
+  let dialog = document.getElementById("item-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "item-dialog";
+    document.body.appendChild(dialog);
+  }
+
+  try {
+    const movements = Inventory.getMovements(itemId || undefined);
+
+    const rows = movements
+      .map((m) => {
+        const sign = m.type === "in" ? "+" : "−";
+        const note = m.note ? ` · ${escapeHtml(m.note)}` : "";
+        // In the all-items view we show the item name; in a single-item view we don't need it
+        const title = item ? (m.type === "in" ? "Stock in" : "Stock out") : escapeHtml(m.itemName);
+        return `
+        <li class="list-row">
+          <div>
+            <strong>${title}</strong>
+            <div class="muted">${formatDate(m.date)}${note}</div>
+          </div>
+          <span class="move move-${m.type}">${sign}${m.quantity}</span>
+        </li>`;
+      })
+      .join("");
+
+    dialog.innerHTML = `
+      <div class="form">
+        <h3>${item ? `History: ${escapeHtml(item.name)}` : "All stock movements"}</h3>
+        <div class="history-list">
+          ${movements.length === 0
+            ? `<p class="empty">No stock movements yet.</p>`
+            : `<ul class="list">${rows}</ul>`}
+        </div>
+        <div class="form-actions">
+          <button type="button" id="history-close" class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("history-close").addEventListener("click", () => dialog.close());
+    dialog.showModal();
+  } catch (error) {
+    showMessage(error.message, true);
+  }
 }
 
 // ------------------------------------------------------------
