@@ -100,6 +100,7 @@ function attentionList(items) {
         <div>
           <strong>${escapeHtml(item.name)}</strong>
           <div class="muted">${item.quantity} ${escapeHtml(item.unit)} left (minimum ${item.minStock})</div>
+          <div class="muted">Suggested restock: <strong>${item.suggestedRestock} ${escapeHtml(item.unit)}</strong> (rule-based)</div>
         </div>
         ${statusBadge(item.status)}
       </li>`
@@ -228,7 +229,10 @@ export function renderInventory() {
     container.innerHTML = `
       <div class="toolbar">
         <button id="add-item-btn" class="btn btn-primary">+ Add item</button>
-        <button id="all-history-btn" class="btn btn-secondary">All history</button>        <input id="inv-search" type="search"
+        <button id="all-history-btn" class="btn btn-secondary">All history</button>
+        <button id="export-csv-btn" class="btn btn-secondary">Export CSV</button>
+        <button id="import-csv-btn" class="btn btn-secondary">Import CSV</button>
+        <input id="csv-file" type="file" accept=".csv,text/csv" class="hidden" />        <input id="inv-search" type="search"
                placeholder="Search by name or category..."
                value="${escapeHtml(inventoryFilters.search)}" />
         <select id="inv-status">
@@ -238,6 +242,7 @@ export function renderInventory() {
           <option value="out">Out of stock</option>
         </select>
       </div>
+      <p class="muted">Data is saved in this browser on this device only. Use Export CSV to keep a backup.</p>
       <div id="inv-table"></div>
     `;
 
@@ -257,6 +262,7 @@ export function renderInventory() {
 
     document.getElementById("add-item-btn").addEventListener("click", () => openItemForm());
     document.getElementById("all-history-btn").addEventListener("click", () => openHistory());
+    initCsvButtons();
     // One listener handles every Edit / Delete button in the table
     document.getElementById("inv-table").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
@@ -382,6 +388,7 @@ function openItemForm(itemId = null) {
         <input name="category" list="category-list" placeholder="e.g. Dairy"
                value="${escapeHtml(item?.category)}" />
         <datalist id="category-list">${categoryOptions}</datalist>
+        <datalist id="unit-list">${Inventory.ALLOWED_UNITS.map((u) => `<option value="${u}"></option>`).join("")}</datalist>
       </label>
 
       <div class="form-row">
@@ -390,7 +397,7 @@ function openItemForm(itemId = null) {
                  value="${editing ? item.quantity : 0}" ${editing ? "disabled" : ""} />
         </label>
         <label>Unit
-          <input name="unit" required placeholder="kg, liters, pcs"
+          <input name="unit" list="unit-list" required placeholder="kg, liters, pcs"
                  value="${escapeHtml(item?.unit)}" />
         </label>
       </div>
@@ -399,6 +406,11 @@ function openItemForm(itemId = null) {
       <label>Minimum stock
         <input name="minStock" type="number" min="0" step="any"
                value="${item ? item.minStock : 0}" />
+      </label>
+
+      <label>Restock target (optional)
+        <input name="targetStock" type="number" min="0" step="any"
+               value="${item?.targetStock ?? ""}" placeholder="default: 2 × minimum" />
       </label>
 
       <p id="form-error" class="form-error hidden"></p>
@@ -412,11 +424,14 @@ function openItemForm(itemId = null) {
 
   document.getElementById("form-cancel").addEventListener("click", () => dialog.close());
 
-  document.getElementById("item-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.target));
+  const form = document.getElementById("item-form");
+  const errorBox = document.getElementById("form-error");
 
-    // A blank number box counts as 0
+  // Saves the item. `options` lets the user override a "looks similar" warning.
+  function submitItem(options = {}) {
+    const data = Object.fromEntries(new FormData(form));
+
+    // A blank number box counts as 0 (the restock target stays optional)
     const quantity = data.quantity === "" ? 0 : data.quantity;
     const minStock = data.minStock === "" ? 0 : data.minStock;
 
@@ -426,8 +441,9 @@ function openItemForm(itemId = null) {
           name: data.name,
           category: data.category,
           unit: data.unit,
-          minStock
-        });
+          minStock,
+          targetStock: data.targetStock
+        }, options);
         showMessage("Item updated.");
       } else {
         Inventory.addItem({
@@ -435,18 +451,52 @@ function openItemForm(itemId = null) {
           category: data.category,
           quantity,
           unit: data.unit,
-          minStock
-        });
+          minStock,
+          targetStock: data.targetStock
+        }, options);
         showMessage("Item added.");
       }
       dialog.close();
       renderInventoryTable();
     } catch (error) {
+      if (error.code === "SIMILAR_NAME" || error.code === "SIMILAR_CATEGORY") {
+        showSimilarPrompt(error, options);
+        return;
+      }
       // Keep the form open and show what went wrong (duplicate name, bad number, etc.)
-      const box = document.getElementById("form-error");
-      box.textContent = error.message;
-      box.classList.remove("hidden");
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("hidden");
     }
+  }
+
+  // "Did you mean ...?" with two choices instead of a hard block
+  function showSimilarPrompt(error, options) {
+    const isName = error.code === "SIMILAR_NAME";
+    errorBox.innerHTML = `
+      ${escapeHtml(error.message)}
+      <div class="form-actions">
+        <button type="button" id="similar-use" class="btn btn-small">${isName ? "Same item, cancel" : `Use “${escapeHtml(error.similar)}”`}</button>
+        <button type="button" id="similar-add" class="btn btn-small">Add anyway</button>
+      </div>`;
+    errorBox.classList.remove("hidden");
+
+    document.getElementById("similar-use").addEventListener("click", () => {
+      if (isName) {
+        dialog.close();
+        showMessage(`“${error.similar}” already exists. Use Stock in to add more.`);
+      } else {
+        form.elements["category"].value = error.similar;
+        submitItem(options);
+      }
+    });
+    document.getElementById("similar-add").addEventListener("click", () => {
+      submitItem({ ...options, [isName ? "allowSimilarName" : "allowSimilarCategory"]: true });
+    });
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitItem();
   });
 
   dialog.showModal();
@@ -599,16 +649,105 @@ function openHistory(itemId = null) {
             : `<ul class="list">${rows}</ul>`}
         </div>
         <div class="form-actions">
+          <button type="button" id="history-export" class="btn btn-secondary">Export CSV</button>
           <button type="button" id="history-close" class="btn btn-secondary">Close</button>
         </div>
       </div>
     `;
 
     document.getElementById("history-close").addEventListener("click", () => dialog.close());
+    document.getElementById("history-export").addEventListener("click", () => {
+      downloadFile(`softstock-history-${todayStamp()}.csv`, Inventory.exportMovementsCSV());
+    });
     dialog.showModal();
   } catch (error) {
     showMessage(error.message, true);
   }
+}
+
+// ------------------------------------------------------------
+// SECTION 6C: CSV export / import (added by Member 3; Member 1 may restyle)
+// ------------------------------------------------------------
+
+// Saves text as a file. The BOM at the start makes Excel read accents correctly.
+function downloadFile(filename, text) {
+  const blob = new Blob(["\uFEFF", text], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function todayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Describes an import result in plain words (used in the confirmation and the final message)
+function importSummary(report) {
+  const parts = [`${report.added} new`, `${report.updated} updated`, `${report.unchanged} unchanged`];
+  if (report.skipped) parts.push(`${report.skipped} skipped`);
+  return parts.join(", ");
+}
+
+async function handleCsvFile(file) {
+  if (!file) return;
+  if (file.size > 1_000_000) {
+    showMessage("That file is too large for an inventory CSV (limit 1 MB).", true);
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const preview = Inventory.previewInventoryCSV(text); // checks only, saves nothing
+
+    if (preview.added + preview.updated === 0) {
+      const first = preview.errors[0];
+      showMessage(
+        first ? `Nothing to import. Row ${first.row}: ${first.message}` : "Nothing to import: no new or changed items.",
+        true
+      );
+      return;
+    }
+
+    const problems = preview.errors
+      .slice(0, 5)
+      .map((e) => `  • Row ${e.row}: ${e.message}`)
+      .join("\n");
+    const more = preview.errors.length > 5 ? `\n  …and ${preview.errors.length - 5} more` : "";
+    const warnings = preview.warnings.length ? `\n\nCheck these:\n${preview.warnings.slice(0, 5).map((w) => "  • " + w).join("\n")}` : "";
+
+    const sure = confirm(
+      `Import "${file.name}"?\n\n${importSummary(preview)}.\n` +
+      "Items with the same name are updated; quantity changes are added to the history." +
+      (problems ? `\n\nThese rows will be skipped:\n${problems}${more}` : "") +
+      warnings
+    );
+    if (!sure) return;
+
+    const result = Inventory.importInventoryCSV(text);
+    renderInventoryTable();
+    showMessage(`Import done: ${importSummary(result)}.`);
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+}
+
+// Connects the Export / Import buttons on the Inventory page
+function initCsvButtons() {
+  document.getElementById("export-csv-btn").addEventListener("click", () => {
+    downloadFile(`softstock-inventory-${todayStamp()}.csv`, Inventory.exportInventoryCSV());
+    showMessage("Inventory exported.");
+  });
+
+  const fileInput = document.getElementById("csv-file");
+  document.getElementById("import-csv-btn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async () => {
+    await handleCsvFile(fileInput.files[0]);
+    fileInput.value = ""; // lets the same file be chosen again
+  });
 }
 
 // ------------------------------------------------------------
