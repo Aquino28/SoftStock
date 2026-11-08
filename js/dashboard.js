@@ -654,6 +654,7 @@ export function renderInsights() {
           The AI will classify the demand signal.
         </p>
 
+        <p id="ai-status" class="muted"></p>
         <form id="ai-form" class="form form-flat">
           <label>Item
             <select name="itemId" required>
@@ -682,6 +683,11 @@ export function renderInsights() {
     `;
 
     document.getElementById("ai-form").addEventListener("submit", handleClassify);
+    // Start downloading/loading the AI model in the background and show its status
+    AI.preloadModel((msg) => {
+      const status = document.getElementById("ai-status");
+      if (status) status.textContent = msg;
+    });
     renderInsightsHistory();
   } catch (error) {
     container.innerHTML = `<p class="empty">Could not load the AI Insights page.</p>`;
@@ -719,12 +725,31 @@ function renderInsightsHistory() {
   }
 }
 
-// Shows one result card: label, confidence bar, explanation, and the item's REAL stock
+// Shows one result card: label, confidence, all scores, suggested action, and the item's REAL stock
 function showAIResult(item, result) {
   const label = result?.label ?? "Unknown";
   const percent = Math.round(Math.min(Math.max(Number(result?.confidence) || 0, 0), 1) * 100);
+
+  // Warning when the model is unsure
+  const warning = result?.lowConfidence
+    ? `<p class="form-error">Low confidence. Treat this result carefully.</p>`
+    : "";
+
   const explanation = result?.explanation
     ? `<p class="result-explanation">${escapeHtml(result.explanation)}</p>`
+    : "";
+
+  // One small bar per category so the owner sees the full picture
+  const allScores = (result?.scores ?? [])
+    .map((s) => {
+      const p = Math.round(s.confidence * 100);
+      return `<div class="muted">${escapeHtml(s.label)}: ${p}%
+        <div class="confidence-bar"><div class="confidence-fill" style="width:${p}%"></div></div></div>`;
+    })
+    .join("");
+
+  const action = result?.suggestedAction
+    ? `<p><strong>Suggested action:</strong> ${escapeHtml(result.suggestedAction)}</p>`
     : "";
 
   document.getElementById("ai-result").innerHTML = `
@@ -735,7 +760,10 @@ function showAIResult(item, result) {
         <div class="confidence-bar"><div class="confidence-fill" style="width:${percent}%"></div></div>
         <span>${percent}% confidence</span>
       </div>
+      ${warning}
       ${explanation}
+      ${action}
+      <details><summary class="muted">All category scores</summary>${allScores}</details>
       <p class="muted">Compare with actual stock: ${stockSummary(item)}</p>
     </div>
   `;

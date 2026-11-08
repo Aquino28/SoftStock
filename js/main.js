@@ -11,9 +11,3 @@ Inventory.initInventory();
 
 // Start the user interface 
 initUI();
-
-// TEMPORARY: lets us test from the browser console by typing "SoftStock.getItems()"
-// Remove this line before the final submission.
-window.SoftStock = Inventory;
-
-console.log("SoftStock ready. Try: SoftStock.getItems()");
