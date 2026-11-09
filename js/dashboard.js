@@ -143,10 +143,11 @@ function observationList(observations) {
         <div>
           <strong>${escapeHtml(o.itemName)}</strong>
           <div class="muted">“${escapeHtml(o.text)}”</div>
+          ${o.stockWarning ? `<div class="form-error">${escapeHtml(o.stockWarning)}</div>` : ""}
         </div>
         <div class="ai-result">
-          <span class="badge badge-ai">${escapeHtml(o.label)}</span>
-          <div class="muted">${Math.round(o.confidence * 100)}%</div>
+          <span class="badge badge-ai ${aiLabelClass(o.label)}">${escapeHtml(o.label)}</span>
+          <div class="${confidenceClass(Math.round(o.confidence * 100))}">${Math.round(o.confidence * 100)}%</div>
         </div>
       </li>`
     )
@@ -762,9 +763,10 @@ function initCsvButtons() {
 // It should classify the text, call saveObservation() from inventory.js
 // (as our leader instructed), and return an object like:
 //
-//     { label: "Increasing demand", confidence: 0.87, explanation: "..." }
+//     { label: "Increasing demand", confidence: 0.87, explanation: "...", stockWarning: null }
 //
 // "confidence" is a number from 0 to 1. "explanation" is optional.
+// "stockWarning" is text when the label conflicts with current stock, otherwise null.
 // If Member 2 uses a different function name, change it in ONE place:
 // the line marked  <<< CHANGE HERE  inside handleClassify() below.
 
@@ -773,6 +775,28 @@ function stockSummary(item) {
   const status = Inventory.getStatus(item);
   return `${item.quantity} ${escapeHtml(item.unit)} in stock ${statusBadge(status)}`;
 }
+
+function aiLabelClass(label) {
+  const classes = {
+    "Increasing demand": "ai-increasing",
+    "Stable demand": "ai-stable",
+    "Decreasing demand": "ai-decreasing",
+    "Usage-driven stockouts": "ai-stockouts",
+    "Possible overstocking": "ai-overstocking",
+    "Supplier delivery delays": "ai-delays"
+  };
+  return classes[label] || "ai-unknown";
+}
+
+function confidenceClass(percent) {
+  if (percent < 35) return "confidence-low";
+  if (percent < 50) return "confidence-below-average";
+  if (percent < 75) return "confidence-average";
+  return "confidence-above-average";
+}
+
+const insightsHistoryState = { category: "all", item: "all", page: 1 };
+const INSIGHTS_PAGE_SIZE = 5;
 
 // Builds the AI Insights page: the form, the result area, and the history
 export function renderInsights() {
@@ -817,11 +841,45 @@ export function renderInsights() {
 
       <div class="panel">
         <h3>Past AI classifications</h3>
+        <div class="history-filters">
+          <label class="history-filter">Category
+            <select id="ai-history-category">
+              <option value="all">All categories</option>
+              ${[...new Set(items.map((item) => item.category))]
+                .sort((a, b) => a.localeCompare(b))
+                .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+                .join("")}
+            </select>
+          </label>
+          <label class="history-filter">Item
+            <select id="ai-history-item">
+              <option value="all">All items</option>
+              ${items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")}
+            </select>
+          </label>
+        </div>
         <div id="ai-history"></div>
       </div>
     `;
 
     document.getElementById("ai-form").addEventListener("submit", handleClassify);
+    const categoryFilter = document.getElementById("ai-history-category");
+    const itemFilter = document.getElementById("ai-history-item");
+    categoryFilter.value = insightsHistoryState.category;
+    itemFilter.value = insightsHistoryState.item;
+    updateInsightsItemFilter();
+    categoryFilter.addEventListener("change", (event) => {
+      insightsHistoryState.category = event.target.value;
+      insightsHistoryState.item = "all";
+      insightsHistoryState.page = 1;
+      updateInsightsItemFilter();
+      renderInsightsHistory();
+    });
+    itemFilter.addEventListener("change", (event) => {
+      insightsHistoryState.item = event.target.value;
+      insightsHistoryState.page = 1;
+      renderInsightsHistory();
+    });
     // Start downloading/loading the AI model in the background and show its status
     AI.preloadModel((msg) => {
       const status = document.getElementById("ai-status");
@@ -838,40 +896,152 @@ export function renderInsights() {
 function renderInsightsHistory() {
   const holder = document.getElementById("ai-history");
   try {
-    const observations = Inventory.getObservations().slice(0, 20);
+    const allObservations = Inventory.getObservations();
+    const observations = allObservations.filter((observation) => {
+      const item = observation.itemId ? Inventory.getItemById(observation.itemId) : null;
+      const category = observation.category || item?.category;
+      const categoryMatches =
+        insightsHistoryState.category === "all" || category === insightsHistoryState.category;
+      const itemMatches =
+        insightsHistoryState.item === "all" || observation.itemId === insightsHistoryState.item;
+      return categoryMatches && itemMatches;
+    });
+    const pageCount = Math.max(1, Math.ceil(observations.length / INSIGHTS_PAGE_SIZE));
+    insightsHistoryState.page = Math.min(insightsHistoryState.page, pageCount);
+    const start = (insightsHistoryState.page - 1) * INSIGHTS_PAGE_SIZE;
+    const pageObservations = observations.slice(start, start + INSIGHTS_PAGE_SIZE);
+
     holder.innerHTML =
       observations.length === 0
         ? `<p class="empty">No AI classifications yet.</p>`
-        : `<ul class="list">${observations
+        : `<p class="muted">${observations.length} classification${observations.length === 1 ? "" : "s"} found.</p>
+        <ul class="list">${pageObservations
             .map(
-              (o) => `
-          <li class="list-row">
+              (o) => {
+                const status = o.status || (o.itemId ? Inventory.getItemById(o.itemId) && Inventory.getStatus(Inventory.getItemById(o.itemId)) : "ok");
+                const item = o.itemId ? Inventory.getItemById(o.itemId) : null;
+                const category = o.category || item?.category || "Uncategorized";
+                const quantity = Number.isFinite(o.quantity) ? o.quantity : item?.quantity;
+                const stockWarning = o.stockWarning
+                  ? `<div class="form-error">${escapeHtml(o.stockWarning)}</div>`
+                  : "";
+                return `
+          <li class="list-row result-history-${status || "ok"} ai-history-entry" data-id="${escapeHtml(o.id)}">
             <div>
               <strong>${escapeHtml(o.itemName)}</strong>
+              <div class="muted">${escapeHtml(category)} · ${statusBadge(status || "ok")} · ${quantity ?? "—"} in stock</div>
               <div class="muted">“${escapeHtml(o.text)}”</div>
               <div class="muted">${formatDate(o.date)}</div>
+              ${stockWarning}
             </div>
             <div class="ai-result">
-              <span class="badge badge-ai">${escapeHtml(o.label)}</span>
-              <div class="muted">${Math.round(o.confidence * 100)}%</div>
+              <span class="badge badge-ai ${aiLabelClass(o.label)}">${escapeHtml(o.label)}</span>
+              <div class="${confidenceClass(Math.round(o.confidence * 100))}">${Math.round(o.confidence * 100)}%</div>
+              <button type="button" class="btn btn-small btn-danger ai-delete" data-id="${escapeHtml(o.id)}">Delete</button>
             </div>
-          </li>`
+          </li>`;
+            }
             )
-            .join("")}</ul>`;
+            .join("")}</ul>
+        ${pageCount > 1
+          ? `<div class="history-pagination">
+              <button type="button" class="btn btn-small" data-history-page="${insightsHistoryState.page - 1}" ${insightsHistoryState.page === 1 ? "disabled" : ""}>Previous</button>
+              <span class="muted">Page ${insightsHistoryState.page} of ${pageCount}</span>
+              <button type="button" class="btn btn-small" data-history-page="${insightsHistoryState.page + 1}" ${insightsHistoryState.page === pageCount ? "disabled" : ""}>Next</button>
+            </div>`
+          : ""}`;
+
+    holder.querySelectorAll(".ai-delete").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!window.confirm("Delete this AI classification?")) return;
+        try {
+          Inventory.deleteObservation(button.dataset.id);
+          showMessage("AI classification deleted.");
+          renderInsightsHistory();
+          renderDashboard();
+        } catch (error) {
+          showMessage(error.message, true);
+        }
+      });
+    });
+    holder.querySelectorAll(".ai-history-entry").forEach((entry) => {
+      entry.addEventListener("click", () => {
+        const observation = allObservations.find((item) => item.id === entry.dataset.id);
+        const item = observation?.itemId ? Inventory.getItemById(observation.itemId) : null;
+        if (!observation || !item) {
+          showMessage("The item for this classification is no longer available.", true);
+          return;
+        }
+        showAIResult(item, {
+          label: observation.label,
+          confidence: observation.confidence,
+          lowConfidence: observation.lowConfidence,
+          scores: observation.scores,
+          suggestedAction: observation.suggestedAction,
+          explanation: observation.explanation,
+          stockWarning: observation.stockWarning,
+          stockStatus: observation.status,
+          stockQuantity: observation.quantity,
+          stockCategory: observation.category,
+          observation: observation.text
+        });
+        document.getElementById("ai-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    holder.querySelectorAll("[data-history-page]").forEach((button) => {
+      button.addEventListener("click", () => {
+        insightsHistoryState.page = Number(button.dataset.historyPage);
+        renderInsightsHistory();
+      });
+    });
   } catch (error) {
     holder.innerHTML = `<p class="empty">Could not load past classifications.</p>`;
     showMessage(error.message, true);
   }
 }
 
+function updateInsightsItemFilter() {
+  const itemFilter = document.getElementById("ai-history-item");
+  if (!itemFilter) return;
+
+  const items = Inventory.getItems()
+    .filter(
+      (item) =>
+        insightsHistoryState.category === "all" ||
+        item.category === insightsHistoryState.category
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+  itemFilter.innerHTML = `
+    <option value="all">All items</option>
+    ${items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")}
+  `;
+  itemFilter.value = insightsStateItemExists(items) ? insightsHistoryState.item : "all";
+}
+
+function insightsStateItemExists(items) {
+  return (
+    insightsHistoryState.item === "all" ||
+    items.some((item) => item.id === insightsHistoryState.item)
+  );
+}
+
 // Shows one result card: label, confidence, all scores, suggested action, and the item's REAL stock
 function showAIResult(item, result) {
   const label = result?.label ?? "Unknown";
   const percent = Math.round(Math.min(Math.max(Number(result?.confidence) || 0, 0), 1) * 100);
+  const status = result?.stockStatus ?? Inventory.getStatus(item);
+  const quantity = result?.stockQuantity ?? item.quantity;
+  const category = result?.stockCategory ?? item.category;
+  const resultTone = result?.stockWarning ? "warning" : status;
 
   // Warning when the model is unsure
   const warning = result?.lowConfidence
     ? `<p class="form-error">Low confidence. Treat this result carefully.</p>`
+    : "";
+
+  const stockWarning = result?.stockWarning
+    ? `<p class="form-error">${escapeHtml(result.stockWarning)}</p>`
     : "";
 
   const explanation = result?.explanation
@@ -882,7 +1052,7 @@ function showAIResult(item, result) {
   const allScores = (result?.scores ?? [])
     .map((s) => {
       const p = Math.round(s.confidence * 100);
-      return `<div class="muted">${escapeHtml(s.label)}: ${p}%
+      return `<div class="muted">${escapeHtml(s.label)}: <span class="${confidenceClass(p)}">${p}%</span>
         <div class="confidence-bar"><div class="confidence-fill" style="width:${p}%"></div></div></div>`;
     })
     .join("");
@@ -890,16 +1060,22 @@ function showAIResult(item, result) {
   const action = result?.suggestedAction
     ? `<p><strong>Suggested action:</strong> ${escapeHtml(result.suggestedAction)}</p>`
     : "";
+  const observation = result?.observation
+    ? `<p class="result-observation"><strong>Observation:</strong> “${escapeHtml(result.observation)}”</p>`
+    : "";
 
   document.getElementById("ai-result").innerHTML = `
-    <div class="result-card">
+    <div class="result-card result-${resultTone}">
       <div class="muted">AI classification for <strong>${escapeHtml(item.name)}</strong></div>
-      <div class="result-label">${escapeHtml(label)}</div>
+      ${observation}
+      <div class="result-stock">${escapeHtml(category)} · ${statusBadge(status)} · ${quantity} ${escapeHtml(item.unit)} in stock</div>
+      <div class="ai-result result-label"><span class="badge badge-ai ${aiLabelClass(label)}">${escapeHtml(label)}</span></div>
       <div class="confidence">
         <div class="confidence-bar"><div class="confidence-fill" style="width:${percent}%"></div></div>
-        <span>${percent}% confidence</span>
+        <span class="${confidenceClass(percent)}">${percent}% confidence</span>
       </div>
       ${warning}
+      ${stockWarning}
       ${explanation}
       ${action}
       <details><summary class="muted">All category scores</summary>${allScores}</details>
@@ -934,7 +1110,7 @@ async function handleClassify(event) {
     // <<< CHANGE HERE: the call to Member 2's function
     const result = await AI.classifyObservation(itemId, text);
 
-    showAIResult(Inventory.getItemById(itemId), result);
+    showAIResult(Inventory.getItemById(itemId), { ...result, observation: text });
     form.elements["text"].value = "";
     renderInsightsHistory();
   } catch (error) {

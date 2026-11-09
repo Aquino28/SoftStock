@@ -593,9 +593,12 @@ export function getMovements(itemId) {
  * Member 2 calls it like this:
  *   saveObservation({
  *     itemId: "item_xxx",
- *     text: "Milk keeps running out earlier than usual",
- *     label: "Frequent stockouts",
- *     confidence: 0.87        // number from 0 to 1
+ *     text: "Milk keeps running out earlier than usual despite on-time deliveries",
+ *     label: "Usage-driven stockouts",
+ *     confidence: 0.87,       // number from 0 to 1
+ *     category: "Dairy",
+ *     status: "low",
+ *     quantity: 2
  *   })
  */
 export function saveObservation(obs) {
@@ -609,6 +612,14 @@ export function saveObservation(obs) {
     text: toValidText(obs.text, "Observation text"),
     label: toValidText(obs.label, "AI label"),
     confidence: Number(obs.confidence) || 0,
+    category: toValidText(obs.category, "Item category"),
+    status: toValidText(obs.status, "Item status"),
+    quantity: Number(obs.quantity),
+    stockWarning: obs.stockWarning ? toValidText(obs.stockWarning, "Stock warning") : null,
+    scores: Array.isArray(obs.scores) ? obs.scores : [],
+    suggestedAction: obs.suggestedAction ? toValidText(obs.suggestedAction, "Suggested action") : null,
+    explanation: obs.explanation ? toValidText(obs.explanation, "Explanation") : null,
+    lowConfidence: Boolean(obs.lowConfidence),
     date: now()
   };
 
@@ -633,6 +644,16 @@ export function getObservations(itemId) {
       return { ...o, itemName: item ? item.name : "(deleted item)" };
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+/** Deletes one saved AI classification by its observation id. */
+export function deleteObservation(id) {
+  const observations = readObservations();
+  const next = observations.filter((observation) => observation.id !== id);
+  if (next.length === observations.length) {
+    throw new Error("AI classification not found.");
+  }
+  writeObservations(next);
 }
 
 // ------------------------------------------------------------
