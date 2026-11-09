@@ -89,7 +89,7 @@ function statCard(label, value, className) {
 }
 
 // "Needs attention" list: items that are low or out of stock
-function attentionList(items) {
+function attentionList(items, latestLabels) {
   if (items.length === 0) {
     return `<p class="empty">All items are well stocked. 🎉</p>`;
   }
@@ -99,10 +99,22 @@ function attentionList(items) {
       <li class="list-row">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
+            ${latestLabels.has(item.id)
+              ? `<span class="badge badge-ai">${escapeHtml(latestLabels.get(item.id))}</span>`
+              : ""}
           <div class="muted">${item.quantity} ${escapeHtml(item.unit)} left (minimum ${item.minStock})</div>
           <div class="muted">Suggested restock: <strong>${item.suggestedRestock} ${escapeHtml(item.unit)}</strong> (rule-based)</div>
         </div>
-        ${statusBadge(item.status)}
+        <div class="attention-actions">
+          ${statusBadge(item.status)}
+          <button
+            class="btn btn-small btn-in"
+            data-action="attention-stock-in"
+            data-id="${escapeHtml(item.id)}"
+          >
+            Stock in
+          </button>
+        </div>
       </li>`
     )
     .join("");
@@ -160,6 +172,15 @@ export function renderDashboard() {
 
   try {
     const stats = Inventory.getDashboardStats();
+    const observations = Inventory.getObservations();
+
+    const latestLabels = new Map();
+
+    observations.forEach((observation) => {
+      if (!latestLabels.has(observation.itemId)) {
+        latestLabels.set(observation.itemId, observation.label);
+      }
+    });
 
     container.innerHTML = `
       <div class="stat-grid">
@@ -171,7 +192,7 @@ export function renderDashboard() {
 
       <div class="panel">
         <h3>Needs attention</h3>
-        ${attentionList(stats.attentionItems)}
+        ${attentionList(stats.attentionItems, latestLabels)}
       </div>
 
       <div class="panel-grid">
@@ -185,12 +206,13 @@ export function renderDashboard() {
         </div>
       </div>
 
-      <div class="dashboard-footer">
-        <button id="reset-btn" class="btn btn-secondary">Reset sample data</button>
-      </div>
     `;
 
-    document.getElementById("reset-btn").addEventListener("click", handleReset);
+    container.querySelectorAll('[data-action="attention-stock-in"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        openStockForm(button.dataset.id, "in");
+      });
+    });
   } catch (error) {
     container.innerHTML = `<p class="empty">Could not load the dashboard.</p>`;
     showMessage(error.message, true);
@@ -244,6 +266,9 @@ export function renderInventory() {
       </div>
       <p class="muted">Data is saved in this browser on this device only. Use Export CSV to keep a backup.</p>
       <div id="inv-table"></div>
+      <div class="dashboard-footer">
+        <button id="reset-btn" class="btn btn-secondary">Reset sample data</button>
+      </div>
     `;
 
     const searchBox = document.getElementById("inv-search");
@@ -261,6 +286,7 @@ export function renderInventory() {
     });
 
     document.getElementById("add-item-btn").addEventListener("click", () => openItemForm());
+    document.getElementById("reset-btn").addEventListener("click", handleReset);
     document.getElementById("all-history-btn").addEventListener("click", () => openHistory());
     initCsvButtons();
     // One listener handles every Edit / Delete button in the table
@@ -309,12 +335,12 @@ function renderInventoryTable() {
       .map(
         (item) => `
         <tr class="row-${item.status}">
-          <td><strong>${escapeHtml(item.name)}</strong></td>
-          <td>${escapeHtml(item.category)}</td>
-          <td>${item.quantity} ${escapeHtml(item.unit)}</td>
-          <td>${item.minStock}</td>
-          <td>${statusBadge(item.status)}</td>
-          <td class="actions">
+          <td data-label="Item"><strong>${escapeHtml(item.name)}</strong></td>
+          <td data-label="Category">${escapeHtml(item.category)}</td>
+          <td data-label="Quantity">${item.quantity} ${escapeHtml(item.unit)}</td>
+          <td data-label="Minimum">${item.minStock}</td>
+          <td data-label="Status">${statusBadge(item.status)}</td>
+          <td class="actions" data-label="Actions">
             <button class="btn btn-small btn-in" data-action="in" data-id="${escapeHtml(item.id)}">Stock in</button>
             <button class="btn btn-small btn-out" data-action="out" data-id="${escapeHtml(item.id)}" ${item.status === "out" ? "disabled" : ""}>Stock out</button>
             <button class="btn btn-small" data-action="history" data-id="${escapeHtml(item.id)}">History</button>
@@ -385,10 +411,22 @@ function openItemForm(itemId = null) {
       </label>
 
       <label>Category
-        <input name="category" list="category-list" placeholder="e.g. Dairy"
-               value="${escapeHtml(item?.category)}" />
-        <datalist id="category-list">${categoryOptions}</datalist>
-        <datalist id="unit-list">${Inventory.ALLOWED_UNITS.map((u) => `<option value="${u}"></option>`).join("")}</datalist>
+        <select name="category" id="category-select" required>
+          <option value="">Select a category</option>
+          ${categories.map((c) => `
+            <option value="${escapeHtml(c)}"
+              ${item?.category === c ? "selected" : ""}>
+              ${escapeHtml(c)}
+            </option>
+          `).join("")}
+          <option value="__new_category__">+ New category...</option>
+        </select>
+      </label>
+
+      <label id="new-category-label" class="hidden">
+        New category name
+        <input name="newCategory" id="new-category-input"
+              placeholder="Enter new category" />
       </label>
 
       <div class="form-row">
@@ -397,8 +435,15 @@ function openItemForm(itemId = null) {
                  value="${editing ? item.quantity : 0}" ${editing ? "disabled" : ""} />
         </label>
         <label>Unit
-          <input name="unit" list="unit-list" required placeholder="kg, liters, pcs"
-                 value="${escapeHtml(item?.unit)}" />
+          <select name="unit" required>
+            <option value="">Select a unit</option>
+            ${Inventory.ALLOWED_UNITS.map((u) => `
+              <option value="${escapeHtml(u)}"
+                ${item?.unit === u ? "selected" : ""}>
+                ${escapeHtml(u)}
+              </option>
+            `).join("")}
+          </select>
         </label>
       </div>
       ${editing ? `<p class="muted">To change the quantity, use Stock in / Stock out.</p>` : ""}
@@ -425,11 +470,35 @@ function openItemForm(itemId = null) {
   document.getElementById("form-cancel").addEventListener("click", () => dialog.close());
 
   const form = document.getElementById("item-form");
+  const categorySelect = form.elements["category"];
+  const newCategoryLabel = document.getElementById("new-category-label");
+  const newCategoryInput = document.getElementById("new-category-input");
+
+  categorySelect.addEventListener("change", () => {
+    const isNew = categorySelect.value === "__new_category__";
+
+    newCategoryLabel.classList.toggle("hidden", !isNew);
+    newCategoryInput.required = isNew;
+
+    if (isNew) {
+      newCategoryInput.focus();
+    }
+  });
   const errorBox = document.getElementById("form-error");
 
   // Saves the item. `options` lets the user override a "looks similar" warning.
   function submitItem(options = {}) {
     const data = Object.fromEntries(new FormData(form));
+
+    const selectedCategory =
+      data.category === "__new_category__"
+        ? data.newCategory.trim()
+        : data.category;
+
+    if (!selectedCategory) {
+      showMessage("Please select or enter a category.", true);
+      return;
+    }
 
     // A blank number box counts as 0 (the restock target stays optional)
     const quantity = data.quantity === "" ? 0 : data.quantity;
@@ -439,7 +508,7 @@ function openItemForm(itemId = null) {
       if (editing) {
         Inventory.updateItem(itemId, {
           name: data.name,
-          category: data.category,
+          category: selectedCategory,
           unit: data.unit,
           minStock,
           targetStock: data.targetStock
@@ -448,7 +517,7 @@ function openItemForm(itemId = null) {
       } else {
         Inventory.addItem({
           name: data.name,
-          category: data.category,
+          category: selectedCategory,
           quantity,
           unit: data.unit,
           minStock,
@@ -585,6 +654,7 @@ function openStockForm(itemId, type) {
       );
       dialog.close();
       renderInventoryTable();
+      renderDashboard();
     } catch (error) {
       // Example: "Not enough stock. Only 3 kg of Espresso Beans available."
       const box = document.getElementById("form-error");

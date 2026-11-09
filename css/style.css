@@ -143,7 +143,11 @@ h2 { color: var(--brown); font-family: Georgia, "Times New Roman", serif; }
 }
 .btn-secondary { background: var(--cream-dark); color: var(--brown); }
 .btn-secondary:hover { background: var(--border); }
-.dashboard-footer { text-align: right; }
+.dashboard-footer {
+  text-align: right;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
 
 @media (min-width: 700px) {
   .stat-grid  { grid-template-columns: repeat(4, 1fr); }
@@ -220,6 +224,15 @@ dialog {
   color: var(--ink);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
+
+dialog[open] {
+  position: fixed;
+  top: 2vh;
+  margin: 0 auto;
+  max-height: 96vh;
+  overflow-y: auto;
+}
+
 dialog::backdrop { background: rgba(87, 44, 10, 0.45); }
 
 .form { display: flex; flex-direction: column; gap: 0.8rem; padding: 1.2rem; }
@@ -275,3 +288,69 @@ dialog::backdrop { background: rgba(87, 44, 10, 0.45); }
 
 /* ---------- Movement history pop-up ---------- */
 .history-list { max-height: 50vh; overflow-y: auto; }
+
+/* MOBILE INVENTORY CARD LAYOUT */
+@media (max-width: 600px) {
+  .table-wrap {
+    overflow-x: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .table {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .table tbody tr {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+
+  .table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    white-space: normal;
+    border-top: 1px solid var(--cream-dark);
+  }
+
+  .table tbody td:first-child {
+    border-top: none;
+    font-weight: 700;
+    color: var(--brown);
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--brown);
+    flex-shrink: 0;
+  }
+
+  .table tbody td.actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .table tbody td.actions::before {
+    width: 100%;
+  }
+}
