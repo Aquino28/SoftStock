@@ -147,7 +147,11 @@ function getStockWarning(item, label, observation) {
   const warnings = [];
   const shortageInObservation = observationIndicatesShortage(observation);
 
-  if (label === "Decreasing demand" && status !== "ok" && /\b(?:overstock|excess|surplus|unused|slow-moving|more of .* than .* need|more than .* need)\b/i.test(observation)) {
+  if (
+    label === "Decreasing demand" &&
+    status !== "ok" &&
+    /\b(?:overstock|excess|surplus|unused|leftover|left over|slow-moving|more of .* than .* need|more than .* need|too much)\b/i.test(observation)
+  ) {
     const statusText = status === "out" ? "out of stock" : "at or below its minimum stock level";
     warnings.push(
       `The item is ${statusText}, so the decreasing-demand or overstock signal conflicts with its current inventory. Prioritize restocking instead of pausing reorders.`
