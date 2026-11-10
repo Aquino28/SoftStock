@@ -1095,43 +1095,12 @@ export function renderInsights() {
         <p id="ai-status" class="muted"></p>
 
         <form id="ai-form" class="form form-flat">
-          <label>Item</label>
-
-          <div class="custom-select" id="ai-item-picker">
-            <button
-              type="button"
-              class="custom-select-trigger"
-              id="ai-item-trigger"
-              aria-haspopup="listbox"
-              aria-expanded="false"
-            >
-              <span id="ai-item-selected">Select an item...</span>
-              <span class="custom-select-arrow">⌄</span>
-            </button>
-
-            <div
-              class="custom-select-menu hidden"
-              id="ai-item-menu"
-              role="listbox"
-              aria-label="Select an inventory item"
-            >
-              ${items.map(item => `
-                <button
-                  type="button"
-                  class="custom-select-option"
-                  role="option"
-                  data-value="${escapeHtml(item.id)}"
-                >
-                  ${escapeHtml(item.name)}
-                </button>
-              `).join("")}
-            </div>
-          </div>
-
-          <select name="itemId" required class="visually-hidden-select">
-            <option value="">Select an item...</option>
-            ${options}
-          </select>
+          <label>Item
+            <select name="itemId" required>
+              <option value="">Select an item…</option>
+              ${options}
+            </select>
+          </label>
 
           <label>Observation
             <textarea name="text" rows="3" maxlength="400" required
