@@ -15,8 +15,8 @@ env.allowLocalModels = false;
 export const MODEL_NAME = "Xenova/mobilebert-uncased-mnli";
 
 // Results below this score are flagged as "low confidence" in the UI.
-// (Scores are spread over 6 labels, so 35% is already well above random guessing at ~17%.)
-export const LOW_CONFIDENCE_THRESHOLD = 0.35;
+// (Scores are spread over 4 labels, so 40% is already above random guessing at 25%.)
+export const LOW_CONFIDENCE_THRESHOLD = 0.4;
 
 // FIX #1: each category has
 //   label      -> what the owner sees
@@ -95,6 +95,10 @@ function validateObservation(itemId, text) {
 
 function asConfidence(value) {
   return Math.min(Math.max(Number(value) || 0, 0), 1);
+}
+
+function roundConfidence(value) {
+  return Math.round(value * 100) / 100;
 }
 
 function getRegexClassification(observation) {
@@ -219,44 +223,63 @@ export async function classifyObservation(itemId, text) {
   const regexCategory = regexLabel
     ? CATEGORIES.find((category) => category.label === regexLabel)
     : null;
+  const regexScore = regexCategory
+    ? scores.find((score) => score.label === regexCategory.label)?.confidence ?? modelTop.confidence
+    : null;
   const top = regexCategory
     ? {
         label: regexCategory.label,
         action: regexCategory.action,
-        confidence: Math.max(modelTop.confidence, 0.9)
+        confidence: regexScore > 0.75 ? regexScore : Math.min(regexScore + 0.25, 1)
       }
     : modelTop;
+  const otherScores = regexCategory ? scores.filter((score) => score.label !== top.label) : [];
+  const otherScoreTotal = otherScores.reduce((total, score) => total + score.confidence, 0);
   const displayScores = regexCategory
-    ? [top, ...scores.filter((score) => score.label !== top.label)]
+    ? [
+        top,
+        ...otherScores.map((score) => ({
+          ...score,
+          confidence:
+            otherScoreTotal > 0
+              ? Math.max(score.confidence - (0.25 * score.confidence) / otherScoreTotal, 0)
+              : score.confidence
+        }))
+      ]
     : scores;
+  const roundedTop = { ...top, confidence: roundConfidence(top.confidence) };
+  const roundedDisplayScores = displayScores.map((score) => ({
+    ...score,
+    confidence: roundConfidence(score.confidence)
+  }));
 
-  const lowConfidence = top.confidence < LOW_CONFIDENCE_THRESHOLD;
+  const lowConfidence = roundedTop.confidence < LOW_CONFIDENCE_THRESHOLD;
   const explanation = lowConfidence
     ? "The model is not sure about this note. Try describing what happened in more detail."
-    : `The note most closely matches "${top.label}".`;
-  const stockWarning = getStockWarning(item, top.label, observation);
+    : `The note most closely matches "${roundedTop.label}".`;
+  const stockWarning = getStockWarning(item, roundedTop.label, observation);
 
   Inventory.saveObservation({
     itemId,
     text: observation,
-    label: top.label,
-    confidence: top.confidence,
+    label: roundedTop.label,
+    confidence: roundedTop.confidence,
     category: item.category,
     status: Inventory.getStatus(item),
     quantity: item.quantity,
     stockWarning,
-    scores: displayScores.map(({ label, confidence }) => ({ label, confidence })),
-    suggestedAction: top.action,
+    scores: roundedDisplayScores.map(({ label, confidence }) => ({ label, confidence })),
+    suggestedAction: roundedTop.action,
     explanation,
     lowConfidence
   });
 
   return {
-    label: top.label,
-    confidence: top.confidence,
+    label: roundedTop.label,
+    confidence: roundedTop.confidence,
     lowConfidence,
-    scores: displayScores.map(({ label, confidence }) => ({ label, confidence })),
-    suggestedAction: top.action,
+    scores: roundedDisplayScores.map(({ label, confidence }) => ({ label, confidence })),
+    suggestedAction: roundedTop.action,
     explanation,
     stockWarning,
     stockStatus: Inventory.getStatus(item),
