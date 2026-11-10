@@ -1,3 +1,4 @@
+
 // ============================================================
 // dashboard.js  (Owner: Member 1)
 // Purpose: All UI code (navigation, dashboard, inventory page, AI page)
@@ -56,13 +57,12 @@ function initNavigation() {
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       tabs.forEach((t) => t.classList.toggle("active", t === tab));
-      window.scrollTo(0, 0);   // start each page at the top
+      window.scrollTo(0, 0);
+
       views.forEach((v) =>
         v.classList.toggle("hidden", v.id !== `view-${tab.dataset.view}`)
       );
 
-      // Refresh the dashboard every time it is opened,
-      // so it always shows the latest stock numbers.
       if (tab.dataset.view === "dashboard") {
         renderDashboard();
       }
@@ -94,15 +94,16 @@ function attentionList(items, latestLabels) {
   if (items.length === 0) {
     return `<p class="empty">Every shelf is stocked. Nothing to refill today. ☕</p>`;
   }
+
   const rows = items
     .map(
       (item) => `
       <li class="list-row">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
-            ${latestLabels.has(item.id)
-              ? `<span class="badge badge-ai">${escapeHtml(latestLabels.get(item.id))}</span>`
-              : ""}
+          ${latestLabels.has(item.id)
+            ? `<span class="badge badge-ai">${escapeHtml(latestLabels.get(item.id))}</span>`
+            : ""}
           <div class="muted">${item.quantity} ${escapeHtml(item.unit)} left (minimum ${item.minStock})</div>
           <div class="muted">Suggested restock: <strong>${item.suggestedRestock} ${escapeHtml(item.unit)}</strong> (rule-based)</div>
         </div>
@@ -119,6 +120,7 @@ function attentionList(items, latestLabels) {
       </li>`
     )
     .join("");
+
   return `<ul class="list">${rows}</ul>`;
 }
 
@@ -127,10 +129,12 @@ function movementList(movements) {
   if (movements.length === 0) {
     return `<p class="empty">No stock movements yet.</p>`;
   }
+
   const rows = movements
     .map((m) => {
       const sign = m.type === "in" ? "+" : "−";
       const note = m.note ? ` · ${escapeHtml(m.note)}` : "";
+
       return `
       <li class="list-row">
         <div>
@@ -141,6 +145,7 @@ function movementList(movements) {
       </li>`;
     })
     .join("");
+
   return `<ul class="list">${rows}</ul>`;
 }
 
@@ -149,6 +154,7 @@ function observationList(observations) {
   if (observations.length === 0) {
     return `<p class="empty">No AI classifications yet.</p>`;
   }
+
   const rows = observations
     .map(
       (o) => `
@@ -164,6 +170,7 @@ function observationList(observations) {
       </li>`
     )
     .join("");
+
   return `<ul class="list">${rows}</ul>`;
 }
 
@@ -214,7 +221,6 @@ export function renderDashboard() {
           ${observationList(stats.recentObservations)}
         </div>
       </div>
-
     `;
 
     container.querySelectorAll('[data-action="attention-stock-in"]').forEach((button) => {
@@ -233,11 +239,11 @@ function handleReset() {
   const sure = confirm(
     "Reset ALL data back to the original sample items? Stock movements and AI results will be erased."
   );
+
   if (!sure) return;
 
   try {
     Inventory.resetToSeedData();
-    // Reset now lives on the Inventory page, so refresh every page, not just the dashboard
     renderDashboard();
     renderInventory();
     renderInsights();
@@ -255,7 +261,6 @@ function handleReset() {
 const inventoryFilters = { search: "", status: "all" };
 
 // Builds the search bar + filter, then fills the table.
-// Exported so the add/edit/delete/stock forms can refresh it later.
 export function renderInventory() {
   const container = document.getElementById("inventory-content");
 
@@ -266,7 +271,8 @@ export function renderInventory() {
         <button id="all-history-btn" class="btn btn-secondary">All history</button>
         <button id="export-csv-btn" class="btn btn-secondary">Export CSV</button>
         <button id="import-csv-btn" class="btn btn-secondary">Import CSV</button>
-        <input id="csv-file" type="file" accept=".csv,text/csv" class="hidden" />        <input id="inv-search" type="search"
+        <input id="csv-file" type="file" accept=".csv,text/csv" class="hidden" />
+        <input id="inv-search" type="search"
                placeholder="Search by name or category..."
                value="${escapeHtml(inventoryFilters.search)}" />
         <select id="inv-status">
@@ -276,8 +282,10 @@ export function renderInventory() {
           <option value="out">Out of stock</option>
         </select>
       </div>
+
       <p class="muted">Data is saved in this browser on this device only. Use Export CSV to keep a backup.</p>
       <div id="inv-table"></div>
+
       <div class="dashboard-footer">
         <button id="reset-btn" class="btn btn-secondary">Reset sample data</button>
       </div>
@@ -285,13 +293,14 @@ export function renderInventory() {
 
     const searchBox = document.getElementById("inv-search");
     const statusSelect = document.getElementById("inv-status");
+
     statusSelect.value = inventoryFilters.status;
 
-    // Only the table is redrawn while typing, so the search box keeps focus
     searchBox.addEventListener("input", () => {
       inventoryFilters.search = searchBox.value;
       renderInventoryTable();
     });
+
     statusSelect.addEventListener("change", () => {
       inventoryFilters.status = statusSelect.value;
       renderInventoryTable();
@@ -300,15 +309,18 @@ export function renderInventory() {
     document.getElementById("add-item-btn").addEventListener("click", () => openItemForm());
     document.getElementById("reset-btn").addEventListener("click", handleReset);
     document.getElementById("all-history-btn").addEventListener("click", () => openHistory());
+
     initCsvButtons();
-    // One listener handles every Edit / Delete button in the table
+
     document.getElementById("inv-table").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
       if (!button) return;
+
       if (button.dataset.action === "in") openStockForm(button.dataset.id, "in");
       if (button.dataset.action === "out") openStockForm(button.dataset.id, "out");
       if (button.dataset.action === "history") openHistory(button.dataset.id);
-      if (button.dataset.action === "edit") openItemForm(button.dataset.id);      if (button.dataset.action === "delete") handleDelete(button.dataset.id);
+      if (button.dataset.action === "edit") openItemForm(button.dataset.id);
+      if (button.dataset.action === "delete") handleDelete(button.dataset.id);
     });
 
     renderInventoryTable();
@@ -331,9 +343,11 @@ function renderInventoryTable() {
       .filter((item) => {
         const statusMatch =
           inventoryFilters.status === "all" || item.status === inventoryFilters.status;
+
         const textMatch =
           item.name.toLowerCase().includes(query) ||
           item.category.toLowerCase().includes(query);
+
         return statusMatch && textMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -356,7 +370,8 @@ function renderInventoryTable() {
             <button class="btn btn-small btn-in" data-action="in" data-id="${escapeHtml(item.id)}">Stock in</button>
             <button class="btn btn-small btn-out" data-action="out" data-id="${escapeHtml(item.id)}" ${item.status === "out" ? "disabled" : ""}>Stock out</button>
             <button class="btn btn-small" data-action="history" data-id="${escapeHtml(item.id)}">History</button>
-            <button class="btn btn-small" data-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>            <button class="btn btn-small btn-danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+            <button class="btn btn-small" data-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>
+            <button class="btn btn-small btn-danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
           </td>
         </tr>`
       )
@@ -391,6 +406,7 @@ function renderInventoryTable() {
 // ------------------------------------------------------------
 
 // Opens the pop-up form. No id = "Add item" mode. With an id = "Edit item" mode.
+
 function openItemForm(itemId = null) {
   const editing = itemId !== null;
   const item = editing ? Inventory.getItemById(itemId) : null;
@@ -400,19 +416,15 @@ function openItemForm(itemId = null) {
     return;
   }
 
-  // Create the dialog once, then reuse it
   let dialog = document.getElementById("item-dialog");
+
   if (!dialog) {
     dialog = document.createElement("dialog");
     dialog.id = "item-dialog";
     document.body.appendChild(dialog);
   }
 
-  // Suggest existing categories while typing
   const categories = [...new Set(Inventory.getItems().map((i) => i.category))];
-  const categoryOptions = categories
-    .map((c) => `<option value="${escapeHtml(c)}"></option>`)
-    .join("");
 
   dialog.innerHTML = `
     <form id="item-form" class="form">
@@ -422,23 +434,65 @@ function openItemForm(itemId = null) {
         <input name="name" required value="${escapeHtml(item?.name)}" />
       </label>
 
-      <label>Category
-        <select name="category" id="category-select" required>
-          <option value="">Select a category</option>
+      <label>Category</label>
+
+      <div class="custom-select" id="category-picker">
+        <button
+          type="button"
+          class="custom-select-trigger"
+          id="category-trigger"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+        >
+          <span id="category-selected">
+            ${item ? escapeHtml(item.category) : "Select a category..."}
+          </span>
+          <span class="custom-select-arrow">⌄</span>
+        </button>
+
+        <div
+          class="custom-select-menu hidden"
+          id="category-menu"
+          role="listbox"
+          aria-label="Select a category"
+        >
           ${categories.map((c) => `
-            <option value="${escapeHtml(c)}"
-              ${item?.category === c ? "selected" : ""}>
+            <button
+              type="button"
+              class="custom-select-option"
+              role="option"
+              data-value="${escapeHtml(c)}"
+            >
               ${escapeHtml(c)}
-            </option>
+            </button>
           `).join("")}
-          <option value="__new_category__">+ New category...</option>
-        </select>
-      </label>
+
+          <button
+            type="button"
+            class="custom-select-option"
+            role="option"
+            data-value="__new_category__"
+          >
+            + New category...
+          </button>
+        </div>
+      </div>
+
+      <select name="category" id="category-select" required class="visually-hidden-select">
+        <option value="">Select a category</option>
+        ${categories.map((c) => `
+          <option value="${escapeHtml(c)}"
+            ${item?.category === c ? "selected" : ""}>
+            ${escapeHtml(c)}
+          </option>
+        `).join("")}
+        <option value="__new_category__">+ New category...</option>
+      </select>
 
       <label id="new-category-label" class="hidden">
         New category name
         <input name="newCategory" id="new-category-input"
-              placeholder="Enter new category" />
+               placeholder="Enter new category" />
       </label>
 
       <div class="form-row">
@@ -446,9 +500,45 @@ function openItemForm(itemId = null) {
           <input name="quantity" type="number" min="0" step="any"
                  value="${editing ? item.quantity : 0}" ${editing ? "disabled" : ""} />
         </label>
-        <label>Unit
-          <select name="unit" required>
-            <option value="">Select a unit</option>
+
+        <div class="unit-field">
+          <label for="unit-trigger">Unit</label>
+
+          <div class="custom-select" id="unit-picker">
+            <button
+              type="button"
+              class="custom-select-trigger"
+              id="unit-trigger"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            >
+              <span id="unit-selected">
+                ${item ? escapeHtml(item.unit) : "Select a unit..."}
+              </span>
+              <span class="custom-select-arrow">⌄</span>
+            </button>
+
+            <div
+              class="custom-select-menu hidden"
+              id="unit-menu"
+              role="listbox"
+              aria-label="Select a unit"
+            >
+              ${Inventory.ALLOWED_UNITS.map((u) => `
+                <button
+                  type="button"
+                  class="custom-select-option"
+                  role="option"
+                  data-value="${escapeHtml(u)}"
+                >
+                  ${escapeHtml(u)}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+
+          <select name="unit" required class="visually-hidden-select">
+            <option value="">Select a unit...</option>
             ${Inventory.ALLOWED_UNITS.map((u) => `
               <option value="${escapeHtml(u)}"
                 ${item?.unit === u ? "selected" : ""}>
@@ -456,8 +546,9 @@ function openItemForm(itemId = null) {
               </option>
             `).join("")}
           </select>
-        </label>
+        </div>
       </div>
+
       ${editing ? `<p class="muted">To change the quantity, use Stock in / Stock out.</p>` : ""}
 
       <label>Minimum stock
@@ -486,6 +577,78 @@ function openItemForm(itemId = null) {
   const newCategoryLabel = document.getElementById("new-category-label");
   const newCategoryInput = document.getElementById("new-category-input");
 
+  // ----------------------------------------------------------
+  // Custom Category dropdown
+  // ----------------------------------------------------------
+
+  const categoryPicker = document.getElementById("category-picker");
+  const categoryTrigger = document.getElementById("category-trigger");
+  const categoryMenu = document.getElementById("category-menu");
+  const categorySelected = document.getElementById("category-selected");
+
+  categoryTrigger.addEventListener("click", () => {
+    const isOpen = !categoryMenu.classList.contains("hidden");
+
+    categoryMenu.classList.toggle("hidden");
+    categoryTrigger.setAttribute("aria-expanded", String(!isOpen));
+  });
+
+  categoryMenu.querySelectorAll(".custom-select-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      categorySelect.value = option.dataset.value;
+      categorySelected.textContent = option.textContent.trim();
+
+      categorySelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+      categoryMenu.classList.add("hidden");
+      categoryTrigger.setAttribute("aria-expanded", "false");
+    });
+  });
+
+  // ----------------------------------------------------------
+  // Custom Unit dropdown
+  // ----------------------------------------------------------
+
+  const unitPicker = document.getElementById("unit-picker");
+  const unitTrigger = document.getElementById("unit-trigger");
+  const unitMenu = document.getElementById("unit-menu");
+  const unitSelected = document.getElementById("unit-selected");
+  const unitSelect = form.elements["unit"];
+
+  unitTrigger.addEventListener("click", () => {
+    const isOpen = !unitMenu.classList.contains("hidden");
+
+    unitMenu.classList.toggle("hidden");
+    unitTrigger.setAttribute("aria-expanded", String(!isOpen));
+  });
+
+  unitMenu.querySelectorAll(".custom-select-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      unitSelect.value = option.dataset.value;
+      unitSelected.textContent = option.textContent.trim();
+
+      unitMenu.classList.add("hidden");
+      unitTrigger.setAttribute("aria-expanded", "false");
+    });
+  });
+
+  // Close both dropdowns when clicking outside
+  document.addEventListener("click", (event) => {
+    if (!categoryPicker.contains(event.target)) {
+      categoryMenu.classList.add("hidden");
+      categoryTrigger.setAttribute("aria-expanded", "false");
+    }
+
+    if (!unitPicker.contains(event.target)) {
+      unitMenu.classList.add("hidden");
+      unitTrigger.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  // ----------------------------------------------------------
+  // Category change behavior
+  // ----------------------------------------------------------
+
   categorySelect.addEventListener("change", () => {
     const isNew = categorySelect.value === "__new_category__";
 
@@ -496,9 +659,9 @@ function openItemForm(itemId = null) {
       newCategoryInput.focus();
     }
   });
+
   const errorBox = document.getElementById("form-error");
 
-  // Saves the item. `options` lets the user override a "looks similar" warning.
   function submitItem(options = {}) {
     const data = Object.fromEntries(new FormData(form));
 
@@ -512,7 +675,6 @@ function openItemForm(itemId = null) {
       return;
     }
 
-    // A blank number box counts as 0 (the restock target stays optional)
     const quantity = data.quantity === "" ? 0 : data.quantity;
     const minStock = data.minStock === "" ? 0 : data.minStock;
 
@@ -525,6 +687,7 @@ function openItemForm(itemId = null) {
           minStock,
           targetStock: data.targetStock
         }, options);
+
         showMessage("Item updated.");
       } else {
         Inventory.addItem({
@@ -535,8 +698,10 @@ function openItemForm(itemId = null) {
           minStock,
           targetStock: data.targetStock
         }, options);
+
         showMessage("Item added.");
       }
+
       dialog.close();
       renderInventoryTable();
     } catch (error) {
@@ -544,21 +709,22 @@ function openItemForm(itemId = null) {
         showSimilarPrompt(error, options);
         return;
       }
-      // Keep the form open and show what went wrong (duplicate name, bad number, etc.)
+
       errorBox.textContent = error.message;
       errorBox.classList.remove("hidden");
     }
   }
 
-  // "Did you mean ...?" with two choices instead of a hard block
   function showSimilarPrompt(error, options) {
     const isName = error.code === "SIMILAR_NAME";
+
     errorBox.innerHTML = `
       ${escapeHtml(error.message)}
       <div class="form-actions">
         <button type="button" id="similar-use" class="btn btn-small">${isName ? "Same item, cancel" : `Use “${escapeHtml(error.similar)}”`}</button>
         <button type="button" id="similar-add" class="btn btn-small">Add anyway</button>
       </div>`;
+
     errorBox.classList.remove("hidden");
 
     document.getElementById("similar-use").addEventListener("click", () => {
@@ -567,11 +733,16 @@ function openItemForm(itemId = null) {
         showMessage(`“${error.similar}” already exists. Use Stock in to add more.`);
       } else {
         form.elements["category"].value = error.similar;
+        categorySelected.textContent = error.similar;
         submitItem(options);
       }
     });
+
     document.getElementById("similar-add").addEventListener("click", () => {
-      submitItem({ ...options, [isName ? "allowSimilarName" : "allowSimilarCategory"]: true });
+      submitItem({
+        ...options,
+        [isName ? "allowSimilarName" : "allowSimilarCategory"]: true
+      });
     });
   }
 
@@ -583,9 +754,11 @@ function openItemForm(itemId = null) {
   dialog.showModal();
 }
 
+
 // Delete button: ask first, then delete
 function handleDelete(itemId) {
   const item = Inventory.getItemById(itemId);
+
   if (!item) {
     showMessage("Item not found.", true);
     return;
@@ -594,6 +767,7 @@ function handleDelete(itemId) {
   const sure = confirm(
     `Delete "${item.name}"? Its stock movements and AI results will also be deleted.`
   );
+
   if (!sure) return;
 
   try {
@@ -609,9 +783,9 @@ function handleDelete(itemId) {
 // SECTION 6: Stock in / Stock out
 // ------------------------------------------------------------
 
-// Opens the pop-up for recording stock received ("in") or used ("out")
 function openStockForm(itemId, type) {
   const item = Inventory.getItemById(itemId);
+
   if (!item) {
     showMessage("Item not found.", true);
     return;
@@ -619,8 +793,8 @@ function openStockForm(itemId, type) {
 
   const isIn = type === "in";
 
-  // Reuse the same dialog as the add/edit form
   let dialog = document.getElementById("item-dialog");
+
   if (!dialog) {
     dialog = document.createElement("dialog");
     dialog.id = "item-dialog";
@@ -653,6 +827,7 @@ function openStockForm(itemId, type) {
 
   document.getElementById("stock-form").addEventListener("submit", (event) => {
     event.preventDefault();
+
     const data = Object.fromEntries(new FormData(event.target));
 
     try {
@@ -661,14 +836,15 @@ function openStockForm(itemId, type) {
       } else {
         Inventory.stockOut(itemId, data.quantity, data.note);
       }
+
       showMessage(
         `${isIn ? "Added" : "Removed"} ${data.quantity} ${item.unit} ${isIn ? "to" : "from"} ${item.name}.`
       );
+
       dialog.close();
       renderInventoryTable();
       renderDashboard();
     } catch (error) {
-      // Example: "Not enough stock. Only 3 kg of Espresso Beans available."
       const box = document.getElementById("form-error");
       box.textContent = error.message;
       box.classList.remove("hidden");
@@ -683,9 +859,6 @@ function openStockForm(itemId, type) {
 // SECTION 6B: Stock movement history pop-up
 // ------------------------------------------------------------
 
-// Opens a pop-up listing stock movements (newest first).
-// openHistory(itemId) -> history of ONE item
-// openHistory()       -> history of ALL items
 function openHistory(itemId = null) {
   const item = itemId ? Inventory.getItemById(itemId) : null;
 
@@ -694,8 +867,8 @@ function openHistory(itemId = null) {
     return;
   }
 
-  // Reuse the same dialog as the other forms
   let dialog = document.getElementById("item-dialog");
+
   if (!dialog) {
     dialog = document.createElement("dialog");
     dialog.id = "item-dialog";
@@ -709,8 +882,8 @@ function openHistory(itemId = null) {
       .map((m) => {
         const sign = m.type === "in" ? "+" : "−";
         const note = m.note ? ` · ${escapeHtml(m.note)}` : "";
-        // In the all-items view we show the item name; in a single-item view we don't need it
         const title = item ? (m.type === "in" ? "Stock in" : "Stock out") : escapeHtml(m.itemName);
+
         return `
         <li class="list-row">
           <div>
@@ -738,9 +911,11 @@ function openHistory(itemId = null) {
     `;
 
     document.getElementById("history-close").addEventListener("click", () => dialog.close());
+
     document.getElementById("history-export").addEventListener("click", () => {
       downloadFile(`softstock-history-${todayStamp()}.csv`, Inventory.exportMovementsCSV());
     });
+
     dialog.showModal();
   } catch (error) {
     showMessage(error.message, true);
@@ -748,18 +923,20 @@ function openHistory(itemId = null) {
 }
 
 // ------------------------------------------------------------
-// SECTION 6C: CSV export / import (added by Member 3; Member 1 may restyle)
+// SECTION 6C: CSV export / import
 // ------------------------------------------------------------
 
-// Saves text as a file. The BOM at the start makes Excel read accents correctly.
 function downloadFile(filename, text) {
   const blob = new Blob(["\uFEFF", text], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
+
   link.href = URL.createObjectURL(blob);
   link.download = filename;
+
   document.body.appendChild(link);
   link.click();
   link.remove();
+
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
@@ -767,15 +944,21 @@ function todayStamp() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Describes an import result in plain words (used in the confirmation and the final message)
 function importSummary(report) {
-  const parts = [`${report.added} new`, `${report.updated} updated`, `${report.unchanged} unchanged`];
+  const parts = [
+    `${report.added} new`,
+    `${report.updated} updated`,
+    `${report.unchanged} unchanged`
+  ];
+
   if (report.skipped) parts.push(`${report.skipped} skipped`);
+
   return parts.join(", ");
 }
 
 async function handleCsvFile(file) {
   if (!file) return;
+
   if (file.size > 1_000_000) {
     showMessage("That file is too large for an inventory CSV (limit 1 MB).", true);
     return;
@@ -783,14 +966,16 @@ async function handleCsvFile(file) {
 
   try {
     const text = await file.text();
-    const preview = Inventory.previewInventoryCSV(text); // checks only, saves nothing
+    const preview = Inventory.previewInventoryCSV(text);
 
     if (preview.added + preview.updated === 0) {
       const first = preview.errors[0];
+
       showMessage(
         first ? `Nothing to import. Row ${first.row}: ${first.message}` : "Nothing to import: no new or changed items.",
         true
       );
+
       return;
     }
 
@@ -798,8 +983,12 @@ async function handleCsvFile(file) {
       .slice(0, 5)
       .map((e) => `  • Row ${e.row}: ${e.message}`)
       .join("\n");
+
     const more = preview.errors.length > 5 ? `\n  …and ${preview.errors.length - 5} more` : "";
-    const warnings = preview.warnings.length ? `\n\nCheck these:\n${preview.warnings.slice(0, 5).map((w) => "  • " + w).join("\n")}` : "";
+
+    const warnings = preview.warnings.length
+      ? `\n\nCheck these:\n${preview.warnings.slice(0, 5).map((w) => "  • " + w).join("\n")}`
+      : "";
 
     const sure = confirm(
       `Import "${file.name}"?\n\n${importSummary(preview)}.\n` +
@@ -807,9 +996,11 @@ async function handleCsvFile(file) {
       (problems ? `\n\nThese rows will be skipped:\n${problems}${more}` : "") +
       warnings
     );
+
     if (!sure) return;
 
     const result = Inventory.importInventoryCSV(text);
+
     renderInventoryTable();
     showMessage(`Import done: ${importSummary(result)}.`);
   } catch (error) {
@@ -817,7 +1008,6 @@ async function handleCsvFile(file) {
   }
 }
 
-// Connects the Export / Import buttons on the Inventory page
 function initCsvButtons() {
   document.getElementById("export-csv-btn").addEventListener("click", () => {
     downloadFile(`softstock-inventory-${todayStamp()}.csv`, Inventory.exportInventoryCSV());
@@ -825,43 +1015,30 @@ function initCsvButtons() {
   });
 
   const fileInput = document.getElementById("csv-file");
+
   document.getElementById("import-csv-btn").addEventListener("click", () => fileInput.click());
+
   fileInput.addEventListener("change", async () => {
     await handleCsvFile(fileInput.files[0]);
-    fileInput.value = ""; // lets the same file be chosen again
+    fileInput.value = "";
   });
 }
 
 // ------------------------------------------------------------
 // SECTION 7: AI Insights page
 // ------------------------------------------------------------
-//
-// HOW THIS CONNECTS TO MEMBER 2 (ai.js):
-// This page expects ai.js to export ONE function:
-//
-//     export async function classifyObservation(itemId, text)
-//
-// It should classify the text, call saveObservation() from inventory.js
-// (as our leader instructed), and return an object like:
-//
-//     { label: "Increasing demand", confidence: 0.87, explanation: "..." }
-//
-// "confidence" is a number from 0 to 1. "explanation" is optional.
-// If Member 2 uses a different function name, change it in ONE place:
-// the line marked  <<< CHANGE HERE  inside handleClassify() below.
 
-// Shows the "needs attention" colors next to the AI result
 function stockSummary(item) {
   const status = Inventory.getStatus(item);
   return `${item.quantity} ${escapeHtml(item.unit)} in stock ${statusBadge(status)}`;
 }
 
-// Builds the AI Insights page: the form, the result area, and the history
 export function renderInsights() {
   const container = document.getElementById("insights-content");
 
   try {
     const items = Inventory.getItems().sort((a, b) => a.name.localeCompare(b.name));
+
     const options = items
       .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
       .join("");
@@ -876,13 +1053,45 @@ export function renderInsights() {
         </p>
 
         <p id="ai-status" class="muted"></p>
+
         <form id="ai-form" class="form form-flat">
-          <label>Item
-            <select name="itemId" required>
-              <option value="">Select an item…</option>
-              ${options}
-            </select>
-          </label>
+          <label>Item</label>
+
+          <div class="custom-select" id="ai-item-picker">
+            <button
+              type="button"
+              class="custom-select-trigger"
+              id="ai-item-trigger"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            >
+              <span id="ai-item-selected">Select an item...</span>
+              <span class="custom-select-arrow">⌄</span>
+            </button>
+
+            <div
+              class="custom-select-menu hidden"
+              id="ai-item-menu"
+              role="listbox"
+              aria-label="Select an inventory item"
+            >
+              ${items.map(item => `
+                <button
+                  type="button"
+                  class="custom-select-option"
+                  role="option"
+                  data-value="${escapeHtml(item.id)}"
+                >
+                  ${escapeHtml(item.name)}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+
+          <select name="itemId" required class="visually-hidden-select">
+            <option value="">Select an item...</option>
+            ${options}
+          </select>
 
           <label>Observation
             <textarea name="text" rows="3" maxlength="400" required
@@ -904,11 +1113,43 @@ export function renderInsights() {
     `;
 
     document.getElementById("ai-form").addEventListener("submit", handleClassify);
-    // Start downloading/loading the AI model in the background and show its status
+
+    // Custom AI item dropdown
+    const itemPicker = document.getElementById("ai-item-picker");
+    const itemTrigger = document.getElementById("ai-item-trigger");
+    const itemMenu = document.getElementById("ai-item-menu");
+    const selectedText = document.getElementById("ai-item-selected");
+    const itemSelect = document.querySelector('#ai-form select[name="itemId"]');
+
+    itemTrigger.addEventListener("click", () => {
+      const isOpen = !itemMenu.classList.contains("hidden");
+
+      itemMenu.classList.toggle("hidden");
+      itemTrigger.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    itemMenu.querySelectorAll(".custom-select-option").forEach((option) => {
+      option.addEventListener("click", () => {
+        itemSelect.value = option.dataset.value;
+        selectedText.textContent = option.textContent.trim();
+
+        itemMenu.classList.add("hidden");
+        itemTrigger.setAttribute("aria-expanded", "false");
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!itemPicker.contains(event.target)) {
+        itemMenu.classList.add("hidden");
+        itemTrigger.setAttribute("aria-expanded", "false");
+      }
+    });
+
     AI.preloadModel((msg) => {
       const status = document.getElementById("ai-status");
       if (status) status.textContent = msg;
     });
+
     renderInsightsHistory();
   } catch (error) {
     container.innerHTML = `<p class="empty">Could not load the AI Insights page.</p>`;
@@ -919,8 +1160,10 @@ export function renderInsights() {
 // List of saved classifications (newest first)
 function renderInsightsHistory() {
   const holder = document.getElementById("ai-history");
+
   try {
     const observations = Inventory.getObservations().slice(0, 20);
+
     holder.innerHTML =
       observations.length === 0
         ? `<p class="empty">No AI classifications yet.</p>`
@@ -946,12 +1189,10 @@ function renderInsightsHistory() {
   }
 }
 
-// Shows one result card: label, confidence, all scores, suggested action, and the item's REAL stock
 function showAIResult(item, result) {
   const label = result?.label ?? "Unknown";
   const percent = Math.round(Math.min(Math.max(Number(result?.confidence) || 0, 0), 1) * 100);
 
-  // Warning when the model is unsure
   const warning = result?.lowConfidence
     ? `<p class="form-error">Low confidence. Treat this result carefully.</p>`
     : "";
@@ -960,10 +1201,10 @@ function showAIResult(item, result) {
     ? `<p class="result-explanation">${escapeHtml(result.explanation)}</p>`
     : "";
 
-  // One small bar per category so the owner sees the full picture
   const allScores = (result?.scores ?? [])
     .map((s) => {
       const p = Math.round(s.confidence * 100);
+
       return `<div class="muted">${escapeHtml(s.label)}: ${p}%
         <div class="confidence-bar"><div class="confidence-fill" style="width:${p}%"></div></div></div>`;
     })
@@ -990,7 +1231,6 @@ function showAIResult(item, result) {
   `;
 }
 
-// Runs when the user presses "Classify"
 async function handleClassify(event) {
   event.preventDefault();
 
@@ -1004,23 +1244,22 @@ async function handleClassify(event) {
     if (!itemId) throw new Error("Please select an item.");
     if (!text) throw new Error("Please write an observation.");
 
-    // <<< CHANGE HERE if Member 2 uses a different function name
     if (typeof AI.classifyObservation !== "function") {
       throw new Error("The AI model is not connected yet (waiting for ai.js).");
     }
 
     button.disabled = true;
     button.textContent = "Analyzing…";
+
     resultBox.innerHTML = `<p class="muted">Running the AI model. The first run can take a while because the model has to load.</p>`;
 
-    // <<< CHANGE HERE: the call to Member 2's function
     const result = await AI.classifyObservation(itemId, text);
 
     showAIResult(Inventory.getItemById(itemId), result);
     form.elements["text"].value = "";
+
     renderInsightsHistory();
   } catch (error) {
-    // Keep the message on screen (the popup disappears after 3 seconds)
     resultBox.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
     showMessage(error.message, true);
   } finally {
