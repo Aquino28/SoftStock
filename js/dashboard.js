@@ -56,6 +56,7 @@ function initNavigation() {
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       tabs.forEach((t) => t.classList.toggle("active", t === tab));
+      window.scrollTo(0, 0);   // start each page at the top
       views.forEach((v) =>
         v.classList.toggle("hidden", v.id !== `view-${tab.dataset.view}`)
       );
@@ -91,7 +92,7 @@ function statCard(label, value, className) {
 // "Needs attention" list: items that are low or out of stock
 function attentionList(items, latestLabels) {
   if (items.length === 0) {
-    return `<p class="empty">All items are well stocked. 🎉</p>`;
+    return `<p class="empty">Every shelf is stocked. Nothing to refill today. ☕</p>`;
   }
   const rows = items
     .map(
@@ -183,21 +184,29 @@ export function renderDashboard() {
     });
 
     container.innerHTML = `
+      <div class="hero">
+        <img src="./assets/cafe.jpg" alt="Softbound Café storefront" width="785" height="672" />
+        <div class="hero-text">
+          <p class="hero-title">Softbound Café</p>
+          <p class="hero-tag">Everyone's Coffee. Every Story. Bound.</p>
+        </div>
+      </div>
+
       <div class="stat-grid">
-        ${statCard("Total items", stats.totalItems, "stat-total")}
-        ${statCard("In stock (OK)", stats.okCount, "stat-ok")}
+        ${statCard("Items on the shelf", stats.totalItems, "stat-total")}
+        ${statCard("Well stocked", stats.okCount, "stat-ok")}
         ${statCard("Low stock", stats.lowStockCount, "stat-low")}
         ${statCard("Out of stock", stats.outOfStockCount, "stat-out")}
       </div>
 
-      <div class="panel">
-        <h3>Needs attention</h3>
+      <div class="panel chalkboard">
+        <h3>Running low</h3>
         ${attentionList(stats.attentionItems, latestLabels)}
       </div>
 
       <div class="panel-grid">
         <div class="panel">
-          <h3>Recent stock movements</h3>
+          <h3>Latest stock movements</h3>
           ${movementList(stats.recentMovements)}
         </div>
         <div class="panel">
@@ -228,7 +237,10 @@ function handleReset() {
 
   try {
     Inventory.resetToSeedData();
+    // Reset now lives on the Inventory page, so refresh every page, not just the dashboard
     renderDashboard();
+    renderInventory();
+    renderInsights();
     showMessage("Sample data restored.");
   } catch (error) {
     showMessage(error.message, true);
@@ -1008,7 +1020,8 @@ async function handleClassify(event) {
     form.elements["text"].value = "";
     renderInsightsHistory();
   } catch (error) {
-    resultBox.innerHTML = "";
+    // Keep the message on screen (the popup disappears after 3 seconds)
+    resultBox.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
     showMessage(error.message, true);
   } finally {
     button.disabled = false;
