@@ -25,32 +25,22 @@ export const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const CATEGORIES = [
   {
     label: "Increasing demand",
-    hypothesis: "Customers are buying more of this product than before.",
+    hypothesis: "This indicates rising customer demand, high usage, or inventory running low and depleting quickly.",
     action: "Review recent usage and consider raising the minimum stock level or restocking earlier."
   },
   {
     label: "Stable demand",
-    hypothesis: "Customer demand for this product is steady and unchanged.",
+    hypothesis: "This indicates normal, steady customer demand with consistent sales and expected inventory levels.",
     action: "Keep the current restocking schedule and minimum stock level."
   },
   {
     label: "Decreasing demand",
-    hypothesis: "Customers are buying less of this product than before.",
+    hypothesis: "This indicates falling customer demand, low usage, or having excess stock, surplus inventory, and more product than needed.",
     action: "Consider ordering smaller quantities or lowering the minimum stock level."
   },
   {
-    label: "Frequent stockouts",
-    hypothesis: "This product keeps running out of stock.",
-    action: "Raise the minimum stock level and check how often deliveries arrive."
-  },
-  {
-    label: "Possible overstocking",
-    hypothesis: "We have more of this product than we need.",
-    action: "Pause reordering and check expiry dates or storage space."
-  },
-  {
-    label: "Supply or delivery issues",
-    hypothesis: "Deliveries of this product from the supplier are late or unreliable.",
+    label: "Supplier delivery delays",
+    hypothesis: "This indicates supplier shipment issues, late deliveries, or missing orders from the vendor.",
     action: "Contact the supplier and consider keeping a larger safety stock."
   }
 ];
@@ -107,14 +97,97 @@ function asConfidence(value) {
   return Math.min(Math.max(Number(value) || 0, 0), 1);
 }
 
+function getRegexClassification(observation) {
+  const text = observation.toLowerCase();
+  const has = (pattern) => pattern.test(text);
+
+  if (
+    has(/\b(?:supplier|vendor)\b.*\b(?:late|delayed|missing|unreliable|failed)\b/) ||
+    has(/\b(?:delivery|deliveries|shipment|shipments)\b.*\b(?:late|delayed|missing|incomplete|unreliable)\b/) ||
+    has(/\b(?:late|delayed|missing|incomplete|unreliable)\b.*\b(?:delivery|deliveries|shipment|shipments)\b/)
+  ) {
+    return "Supplier delivery delays";
+  }
+
+  if (
+    has(/\b(?:demand|sales|usage)\b.*\b(?:decreasing|declining|falling|down|lower|less|slower)\b/) ||
+    has(/\b(?:decreased|declined|fell|fewer customers|selling less|buying less)\b/) ||
+    has(/\b(?:overstocked|overstock|excess|surplus|too much|more of .* than .* need|more than .* need|sitting in storage|barely used|barely being used|unused|slow-moving)\b/)
+  ) {
+    return "Decreasing demand";
+  }
+
+  if (
+    has(/\b(?:demand|sales|usage)\b.*\b(?:increasing|rising|growing|up|higher|more|faster)\b/) ||
+    has(/\b(?:increased|rose|grew|more customers|selling more|buying more)\b/) ||
+    has(/\b(?:out of stock|stockout|stock-outs?|ran out|running out)\b/) ||
+    has(/\b(?:runs? out|running out|ran out)\b.*\b(?:customers?|demand|usage|use|faster|replenish|restock)\b/)
+  ) {
+    return "Increasing demand";
+  }
+
+  if (
+    has(/\b(?:demand|sales|usage)\b.*\b(?:stable|steady|unchanged|consistent|same)\b/) ||
+    has(/\bno change in (?:demand|sales|usage)\b/)
+  ) {
+    return "Stable demand";
+  }
+
+  return null;
+}
+
+function observationIndicatesShortage(observation) {
+  const shortage = /\b(out of stock|stockout|stock-outs?|runs? out|running out|lack(?:s|ing)?|shortage|empty|unavailable)\b/i;
+  const negatedShortage = /\b(no|not|without|never)\s+(?:any\s+)?(?:out of stock|stockouts?|stock-outs?|shortage|lack|empty|unavailable)\b/i;
+  return shortage.test(observation) && !negatedShortage.test(observation);
+}
+
+function getStockWarning(item, label, observation) {
+  const status = Inventory.getStatus(item);
+  const warnings = [];
+  const shortageInObservation = observationIndicatesShortage(observation);
+
+  if (
+    label === "Decreasing demand" &&
+    status !== "ok" &&
+    /\b(?:overstock|excess|surplus|unused|leftover|left over|slow-moving|more of .* than .* need|more than .* need|too much)\b/i.test(observation)
+  ) {
+    const statusText = status === "out" ? "out of stock" : "at or below its minimum stock level";
+    warnings.push(
+      `The item is ${statusText}, so the decreasing-demand or overstock signal conflicts with its current inventory. Prioritize restocking instead of pausing reorders.`
+    );
+  }
+
+  if (label === "Increasing demand" && status === "ok" && shortageInObservation) {
+    warnings.push(
+      "The item is currently above its minimum stock level, so the increasing-demand stockout signal may describe a previous or recurring condition rather than its current status."
+    );
+  }
+
+  if (status === "ok" && shortageInObservation) {
+    warnings.push(
+      "The item currently has stock, but this note reports a shortage or stockout. Review recent usage and replenishment history before treating the item as fully resolved."
+    );
+  }
+
+  if (label === "Decreasing demand" && shortageInObservation) {
+    warnings.push(
+      "The decreasing-demand or overstock signal conflicts with the shortage described in the observation."
+    );
+  }
+
+  return warnings.length > 0 ? warnings.join(" ") : null;
+}
+
 // ---------- Main function used by dashboard.js ----------
 
 /**
  * Classifies an observation, saves it to history, and returns:
- * { label, confidence, lowConfidence, scores[], suggestedAction, explanation }
+ * { label, confidence, lowConfidence, scores[], suggestedAction, explanation, stockWarning }
  */
 export async function classifyObservation(itemId, text) {
   const observation = validateObservation(itemId, text);
+  const item = Inventory.getItemById(itemId);
 
   let result;
   try {
@@ -139,27 +212,55 @@ export async function classifyObservation(itemId, text) {
     })
     .filter(Boolean);
 
-  const top = scores[0];
-  if (!top) throw new Error("The AI model returned no classification.");
+  const modelTop = scores[0];
+  if (!modelTop) throw new Error("The AI model returned no classification.");
+
+  const regexLabel = getRegexClassification(observation);
+  const regexCategory = regexLabel
+    ? CATEGORIES.find((category) => category.label === regexLabel)
+    : null;
+  const top = regexCategory
+    ? {
+        label: regexCategory.label,
+        action: regexCategory.action,
+        confidence: Math.max(modelTop.confidence, 0.9)
+      }
+    : modelTop;
+  const displayScores = regexCategory
+    ? [top, ...scores.filter((score) => score.label !== top.label)]
+    : scores;
 
   const lowConfidence = top.confidence < LOW_CONFIDENCE_THRESHOLD;
   const explanation = lowConfidence
     ? "The model is not sure about this note. Try describing what happened in more detail."
     : `The note most closely matches "${top.label}".`;
+  const stockWarning = getStockWarning(item, top.label, observation);
 
   Inventory.saveObservation({
     itemId,
     text: observation,
     label: top.label,
-    confidence: top.confidence
+    confidence: top.confidence,
+    category: item.category,
+    status: Inventory.getStatus(item),
+    quantity: item.quantity,
+    stockWarning,
+    scores: displayScores.map(({ label, confidence }) => ({ label, confidence })),
+    suggestedAction: top.action,
+    explanation,
+    lowConfidence
   });
 
   return {
     label: top.label,
     confidence: top.confidence,
     lowConfidence,
-    scores: scores.map(({ label, confidence }) => ({ label, confidence })),
+    scores: displayScores.map(({ label, confidence }) => ({ label, confidence })),
     suggestedAction: top.action,
-    explanation
+    explanation,
+    stockWarning,
+    stockStatus: Inventory.getStatus(item),
+    stockQuantity: item.quantity,
+    stockCategory: item.category
   };
 }
