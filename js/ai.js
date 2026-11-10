@@ -235,13 +235,14 @@ export async function classifyObservation(itemId, text) {
     : modelTop;
   const otherScores = regexCategory ? scores.filter((score) => score.label !== top.label) : [];
   const otherScoreTotal = otherScores.reduce((total, score) => total + score.confidence, 0);
+  const shouldReduceOtherScores = regexCategory && regexScore <= 0.75;
   const displayScores = regexCategory
     ? [
         top,
         ...otherScores.map((score) => ({
           ...score,
           confidence:
-            otherScoreTotal > 0
+            shouldReduceOtherScores && otherScoreTotal > 0
               ? Math.max(score.confidence - (0.25 * score.confidence) / otherScoreTotal, 0)
               : score.confidence
         }))
